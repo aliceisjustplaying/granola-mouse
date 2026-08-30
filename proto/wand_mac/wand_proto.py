@@ -51,9 +51,9 @@ AXIS_REMAP = np.eye(3)  # Unknown board mounting; determine with --probe.
 # baking roll into webcam calibration. Assumed calibration has no marker roll.
 ASSUMED_MOUNT_ROLL_DEG = 0.0
 CAMERA_MOUNT_ROLL_DEG = -90.0
-# Hardware round 7: body +z physical-left yaw otherwise moved screen x right.
-# Apply this once when converting the tracked pointing ray to screen coordinates.
-SCREEN_X_SIGN = -1.0
+# With body +x pointing forward, positive body +z yaw (physical left) already
+# moves toward negative screen x; no additional horizontal mirror is needed.
+SCREEN_X_SIGN = 1.0
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
@@ -474,8 +474,8 @@ def probe(lines):
 
 
 def screen_pointing_ray(rotation: np.ndarray) -> np.ndarray:
-    """Return the pointing ray in screen coordinates."""
-    ray = rotation[:, 1].copy()  # Device/marker up is the pointing direction.
+    """Return the body +x pointing ray in screen coordinates."""
+    ray = rotation[:, 0].copy()
     ray[0] *= SCREEN_X_SIGN
     return ray
 
@@ -657,8 +657,12 @@ def yaw_rotation(angle: float):
 
 
 def pointing_axis_roll(angle: float):
-    """Roll around device +y, its pointing axis."""
-    return yaw_rotation(angle)
+    """Roll around device +x, its pointing axis."""
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return np.array(
+        [[1.0, 0.0, 0.0], [0.0, cosine, -sine], [0.0, sine, cosine]]
+    )
 
 
 def shortest_arc_rotation(source: np.ndarray, target: np.ndarray):
@@ -763,7 +767,7 @@ def track(
     ray_origin_mm[1] = 0.0
     displayed_target = None
     raw_hit_mm = None
-    ray = np.array([0.0, 1.0, 0.0])
+    ray = np.array([1.0, 0.0, 0.0])
     rate_times = deque()
     drift_samples = deque()
     rest_elapsed = 0.0

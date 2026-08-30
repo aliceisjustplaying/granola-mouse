@@ -29,9 +29,9 @@ import wand_proto
 RATE_HZ = 200
 STATIONARY_ACCEL = np.array([0.06, 0.08, -1.02])
 DISPLAY = wand_proto.Display(0, 0, 0, 1920, 1080, 344, 223)
-# Body +y (the ray) points into the screen and body -z points screen-up.
+# Body +x (the ray) points into the screen and body -z points screen-up.
 SCREEN_FROM_FLAT_BODY = np.array(
-    [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]
+    [[0.0, -1.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]]
 )
 CALIBRATION = wand_proto.Calibration(
     SCREEN_FROM_FLAT_BODY, np.array([0.0, 0.0, -500.0])
@@ -185,7 +185,7 @@ class RecenterTests(unittest.TestCase):
         center_direction = -ray_origin / np.linalg.norm(ray_origin)
 
         correction = wand_proto.shortest_arc_rotation(
-            rotation[:, 1], center_direction
+            wand_proto.screen_pointing_ray(rotation), center_direction
         )
         centered_rotation = correction @ rotation
         target, ray, hit = wand_proto.intersect_screen(
@@ -206,15 +206,17 @@ class RecenterTests(unittest.TestCase):
             base_rotation = offset_pointing_rotation(azimuth, elevation)
             current_rotation = reference @ base_rotation
             correction = wand_proto.shortest_arc_rotation(
-                current_rotation[:, 1], center_direction
+                wand_proto.screen_pointing_ray(current_rotation), center_direction
             )
             reference = correction @ reference
             centered_rotation = reference @ base_rotation
             np.testing.assert_allclose(
-                centered_rotation[:, 1], center_direction, atol=2e-12
+                wand_proto.screen_pointing_ray(centered_rotation),
+                center_direction,
+                atol=2e-12,
             )
 
-    def test_default_flow_physical_pitch_gain_after_recenter(self):
+    def test_default_flow_physical_pitch_and_yaw_are_exact_after_recenter(self):
         calibration = wand_proto.assumed_calibration(500.0)
         # Body gravity is -z while NWU earth-up is +z.
         flat_body_to_earth = rotation_x(math.pi)
@@ -229,33 +231,51 @@ class RecenterTests(unittest.TestCase):
         recenter = wand_proto.shortest_arc_rotation(
             wand_proto.screen_pointing_ray(centered), center_direction
         )
-        physical_pitch_deg = 10.0
-        pitched = alignment @ (
-            flat_body_to_earth @ rotation_x(math.radians(-physical_pitch_deg))
-        )
-        ray = recenter @ wand_proto.screen_pointing_ray(pitched)
-        azimuth_deg = math.degrees(math.atan2(ray[0], ray[2]))
-        elevation_deg = math.degrees(
-            math.atan2(ray[1], math.hypot(ray[0], ray[2]))
+        np.testing.assert_allclose(
+            recenter @ wand_proto.screen_pointing_ray(centered),
+            center_direction,
+            atol=1e-12,
         )
 
-        self.assertGreater(elevation_deg / physical_pitch_deg, 0.9)
-        self.assertAlmostEqual(azimuth_deg, 0.0, places=12)
+        motion_deg = 10.0
+        pitched = alignment @ (
+            flat_body_to_earth @ wand_proto.yaw_rotation(math.radians(motion_deg))
+        )
+        yawed_left = alignment @ (
+            flat_body_to_earth @ rotation_z(math.radians(motion_deg))
+        )
+        pitch_ray = recenter @ wand_proto.screen_pointing_ray(pitched)
+        yaw_ray = recenter @ wand_proto.screen_pointing_ray(yawed_left)
+        pitch_azimuth_deg = math.degrees(math.atan2(pitch_ray[0], pitch_ray[2]))
+        pitch_elevation_deg = math.degrees(
+            math.atan2(pitch_ray[1], math.hypot(pitch_ray[0], pitch_ray[2]))
+        )
+        yaw_azimuth_deg = math.degrees(math.atan2(yaw_ray[0], yaw_ray[2]))
+        yaw_elevation_deg = math.degrees(
+            math.atan2(yaw_ray[1], math.hypot(yaw_ray[0], yaw_ray[2]))
+        )
+
+        self.assertAlmostEqual(pitch_elevation_deg, motion_deg, places=12)
+        self.assertAlmostEqual(pitch_azimuth_deg, 0.0, places=12)
+        self.assertAlmostEqual(yaw_azimuth_deg, -motion_deg, places=12)
+        self.assertAlmostEqual(yaw_elevation_deg, 0.0, places=12)
 
     def test_minus_90_mount_roll_has_expected_motion_signs_after_recenter(self):
         self.assertEqual(wand_proto.CAMERA_MOUNT_ROLL_DEG, -90.0)
         rotation = offset_pointing_rotation(20.0, 25.0)
         center_direction = np.array([0.0, 0.0, 1.0])
         centered = (
-            wand_proto.shortest_arc_rotation(rotation[:, 1], center_direction)
+            wand_proto.shortest_arc_rotation(
+                wand_proto.screen_pointing_ray(rotation), center_direction
+            )
             @ rotation
         )
         motion_deg = 5.0
 
-        # Positive screen-y angular velocity was observed as physical yaw left
-        # in hardware round 7. Negative screen-x angular velocity pitches the
-        # ray up. Convert each physical velocity into raw body-frame gyro.
-        yaw_body_gyro = centered.T @ np.array([0.0, motion_deg, 0.0])
+        # Negative screen-y angular velocity moves the ray left. Negative
+        # screen-x angular velocity pitches it up. Convert each physical
+        # velocity into raw body-frame gyro.
+        yaw_body_gyro = centered.T @ np.array([0.0, -motion_deg, 0.0])
         pitch_body_gyro = centered.T @ np.array([-motion_deg, 0.0, 0.0])
         yaw_rotation = centered @ rotation_vector(np.radians(yaw_body_gyro))
         pitch_rotation = centered @ rotation_vector(np.radians(pitch_body_gyro))
@@ -272,11 +292,9 @@ class RecenterTests(unittest.TestCase):
         self.assertLess(pitch_target[1] - DISPLAY.center_px[1], 0.0)
 
     def test_physical_left_positive_body_z_rotation_moves_cursor_left(self):
-        # Body +y points at the screen and gravity is on body -z, matching the
+        # Body +x points at the screen and gravity is on body -z, matching the
         # annotated hardware finding. Positive body +z rotation is leftward.
-        centered = np.array(
-            [[-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]
-        )
+        centered = SCREEN_FROM_FLAT_BODY.copy()
         physical_left = centered.copy()
         for _ in range(10):
             physical_left = physical_left @ rotation_z(math.radians(0.5))
@@ -403,9 +421,9 @@ class GravityCorrectionTests(unittest.TestCase):
         actual = alignment @ body_to_earth_later
         expected = screen_from_earth @ body_to_earth_later
         np.testing.assert_allclose(actual, expected, atol=1e-12)
-        actual_ray = actual[:, 1]
+        actual_ray = wand_proto.screen_pointing_ray(actual)
         expected_elevation = math.atan2(
-            expected[1, 1], math.hypot(expected[0, 1], expected[2, 1])
+            expected[1, 0], math.hypot(expected[0, 0], expected[2, 0])
         )
         actual_elevation = math.atan2(
             actual_ray[1], math.hypot(actual_ray[0], actual_ray[2])
