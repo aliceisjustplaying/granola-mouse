@@ -13,8 +13,11 @@
 
 import argparse
 import math
+import select
 import sys
+import termios
 import time
+import tty
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,8 +41,14 @@ CAMERA_Y_OFFSET_MM = 0.0  # Camera above the physical display edge, if applicabl
 AXIS_REMAP = np.eye(3)  # Unknown board mounting; determine with --probe.
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
+DESK_BIAS_SECONDS = 3.0
 REST_GYRO_DPS = 1.0
 REST_ACCEL_G_TOLERANCE = 0.08
+# Cursor feel knobs for the final pixel-coordinate one-euro filter.
+MIN_CUTOFF = 1.0  # Hz: lower is steadier but adds lag.
+BETA = 0.007  # Higher follows fast motion more closely.
+D_CUTOFF = 1.0  # Hz: derivative smoothing.
+SERIAL_RECONNECT = object()
 
 
 @dataclass
@@ -219,10 +228,14 @@ def replay_lines(path: Path):
 
 
 def serial_lines(port: str, baud: int):
+    connected_once = False
     while True:
         print(f"Opening {port} at {baud} baud", file=sys.stderr)
         try:
             with serial.Serial(port, baudrate=baud, timeout=1.0) as connection:
+                if connected_once:
+                    yield SERIAL_RECONNECT
+                connected_once = True
                 while True:
                     line = connection.readline()
                     if line:
@@ -239,11 +252,33 @@ def clean_interrupts(lines):
         return
 
 
+def collect_gyro_bias(lines, seconds: float):
+    samples = []
+    start_us = None
+    for line in clean_interrupts(lines):
+        if line is SERIAL_RECONNECT:
+            continue
+        parsed = parse_line(line)
+        if not parsed or parsed[0] != "IMU":
+            continue
+        _, t_us, gyro_raw, _ = parsed
+        if start_us is None or t_us < start_us:
+            samples.clear()
+            start_us = t_us
+        samples.append(AXIS_REMAP @ gyro_raw)
+        if t_us - start_us >= seconds * 1e6:
+            values = np.asarray(samples)
+            return np.mean(values, axis=0), np.std(values, axis=0)
+    raise RuntimeError("IMU stream ended before desk bias calibration completed.")
+
+
 def probe(lines):
     last_print = -math.inf
     sample_count = 0
     first_sample_us = final_sample_us = None
     for line in clean_interrupts(lines):
+        if line is SERIAL_RECONNECT:
+            continue
         parsed = parse_line(line)
         if not parsed or parsed[0] != "IMU":
             continue
@@ -284,9 +319,52 @@ def intersect_screen(
     return target, ray, hit_mm
 
 
+class OneEuroFilter:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.previous_time = None
+        self.previous_value = None
+        self.previous_filtered = None
+        self.previous_derivative = np.zeros(2)
+
+    @staticmethod
+    def alpha(cutoff, dt):
+        return 1.0 / (1.0 + 1.0 / (2.0 * math.pi * cutoff * dt))
+
+    def filter(self, value: np.ndarray, sample_time: float):
+        if self.previous_time is None:
+            self.previous_time = sample_time
+            self.previous_value = value.copy()
+            self.previous_filtered = value.copy()
+            return value.copy()
+        dt = sample_time - self.previous_time
+        if dt <= 0:
+            self.reset()
+            return self.filter(value, sample_time)
+        derivative = (value - self.previous_value) / dt
+        derivative_alpha = self.alpha(D_CUTOFF, dt)
+        filtered_derivative = (
+            derivative_alpha * derivative
+            + (1.0 - derivative_alpha) * self.previous_derivative
+        )
+        cutoff = MIN_CUTOFF + BETA * np.abs(filtered_derivative)
+        value_alpha = self.alpha(cutoff, dt)
+        filtered = value_alpha * value + (1.0 - value_alpha) * self.previous_filtered
+        self.previous_time = sample_time
+        self.previous_value = value.copy()
+        self.previous_filtered = filtered
+        self.previous_derivative = filtered_derivative
+        return filtered.copy()
+
+
 class FractionalCursor:
     def __init__(self, warp: bool):
         self.warp = warp
+        self.reset()
+
+    def reset(self):
         self.continuous = None
         self.integer = None
         self.carry = np.zeros(2)
@@ -306,7 +384,42 @@ class FractionalCursor:
         return self.integer.copy()
 
 
-def track(lines, calibration: Calibration, display: Display, warp: bool, debug: bool):
+class TerminalKeys:
+    def __enter__(self):
+        self.fd = None
+        self.previous_settings = None
+        if sys.stdin.isatty():
+            self.fd = sys.stdin.fileno()
+            self.previous_settings = termios.tcgetattr(self.fd)
+            tty.setcbreak(self.fd)
+        return self
+
+    def read(self):
+        if self.fd is not None and select.select([self.fd], [], [], 0)[0]:
+            return sys.stdin.read(1).lower()
+        return None
+
+    def __exit__(self, *_):
+        if self.previous_settings is not None:
+            termios.tcsetattr(self.fd, termios.TCSADRAIN, self.previous_settings)
+
+
+def lines_with_keys(lines):
+    with TerminalKeys() as keys:
+        for line in clean_interrupts(lines):
+            yield keys.read(), line
+
+
+def yaw_rotation(angle: float):
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return np.array([[cosine, 0.0, sine], [0.0, 1.0, 0.0], [-sine, 0.0, cosine]])
+
+
+def track(
+    lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
+    initial_bias=None,
+):
     ahrs = imufusion.Ahrs()
     ahrs.set_settings(
         imufusion.AhrsSettings(
@@ -323,13 +436,14 @@ def track(lines, calibration: Calibration, display: Display, warp: bool, debug: 
     bias_samples = []
     buffered = []
     bias_start_us = None
-    bias = None
+    bias = None if initial_bias is None else np.asarray(initial_bias)
     alignment = None
     last_t_us = None
     gyro_range = 2048.0
     peak_gyro = 0.0
     clip_count = 0
     clip_times = deque()
+    cursor_filter = OneEuroFilter()
     cursor = FractionalCursor(warp)
     # Translation is not tracked after calibration; retaining the webcam-height
     # y origin makes a level post-flip ray target the top edge forever.
@@ -349,8 +463,19 @@ def track(lines, calibration: Calibration, display: Display, warp: bool, debug: 
     duration = 0.0
     target_min = np.array([math.inf, math.inf])
     target_max = np.array([-math.inf, -math.inf])
+    yaw_reference = np.eye(3)
+    recenter_requested = False
 
-    for line in clean_interrupts(lines):
+    for key, line in lines_with_keys(lines):
+        if key == "q":
+            break
+        if key == "r":
+            recenter_requested = True
+        if line is SERIAL_RECONNECT:
+            cursor_filter.reset()
+            cursor.reset()
+            displayed_target = None
+            continue
         parsed = parse_line(line)
         if not parsed:
             continue
@@ -410,6 +535,18 @@ def track(lines, calibration: Calibration, display: Display, warp: bool, debug: 
             buffered.clear()
             continue
 
+        if alignment is None:
+            # Desk bias is already known. Converge tilt from this first gravity
+            # sample immediately, then preserve the webcam-observed yaw.
+            ahrs.set_sample_period(1.0 / 200.0)
+            for _ in range(601):  # Complete Fusion's 3 s startup instantaneously.
+                ahrs.update_no_magnetometer(np.zeros(3), accel)
+            alignment = calibration.rotation @ imufusion.quaternion_to_matrix(
+                ahrs.get_quaternion()
+            ).T
+            last_t_us = t_us
+            continue
+
         dt = (t_us - last_t_us) / 1e6
         last_t_us = t_us
         if dt <= 0 or dt > 0.1:
@@ -417,12 +554,26 @@ def track(lines, calibration: Calibration, display: Display, warp: bool, debug: 
         ahrs.set_sample_period(dt)
         corrected_gyro = gyro - bias
         ahrs.update_no_magnetometer(corrected_gyro, accel)
-        rotation = alignment @ imufusion.quaternion_to_matrix(ahrs.get_quaternion())
+        base_rotation = alignment @ imufusion.quaternion_to_matrix(ahrs.get_quaternion())
+        rotation = yaw_reference @ base_rotation
+        if recenter_requested:
+            azimuth = math.atan2(rotation[0, 1], rotation[2, 1])
+            yaw_reference = yaw_rotation(-azimuth) @ yaw_reference
+            rotation = yaw_reference @ base_rotation
+            recenter_requested = False
+            cursor_filter.reset()
+            cursor.reset()
+            print("# recentered", flush=True)
         target, ray, raw_hit_mm = intersect_screen(ray_origin_mm, rotation, display)
         if target is not None:
-            displayed_target = cursor.move(target)
-            target_min = np.minimum(target_min, target)
-            target_max = np.maximum(target_max, target)
+            filtered_target = cursor_filter.filter(target, t_us / 1e6)
+            displayed_target = cursor.move(filtered_target)
+            target_min = np.minimum(target_min, filtered_target)
+            target_max = np.maximum(target_max, filtered_target)
+        else:
+            cursor_filter.reset()
+            cursor.reset()
+            displayed_target = None
 
         rest = (
             np.linalg.norm(corrected_gyro) < REST_GYRO_DPS
@@ -501,8 +652,8 @@ def main():
                         help="approximate webcam horizontal FOV in degrees")
     args = parser.parse_args()
 
-    lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
     if args.probe:
+        lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
         probe(lines)
         return
 
@@ -512,12 +663,29 @@ def main():
         f" px={display.width_px:.0f}x{display.height_px:.0f}"
         f" physical_mm={display.width_mm:.1f}x{display.height_mm:.1f}"
     )
-    calibration = fake_calibration() if args.fake_calib else camera_calibration(args.fov, display)
-    if args.fake_calib:
+    desk_bias = None
+    use_fake_calibration = args.fake_calib or args.replay is not None
+    if not use_fake_calibration:
+        input("place device flat on desk, press Enter")
+        desk_lines = serial_lines(args.port, args.baud)
+        try:
+            desk_bias, desk_std = collect_gyro_bias(desk_lines, DESK_BIAS_SECONDS)
+        finally:
+            desk_lines.close()
+        print(
+            f"GYRO BIAS dps={np.round(desk_bias, 5).tolist()}"
+            f" std_dps={np.round(desk_std, 5).tolist()}"
+        )
+        if np.any(desk_std > 1.0):
+            print("WARNING gyro std > 1 dps: device was moving during desk bias")
+
+    calibration = fake_calibration() if use_fake_calibration else camera_calibration(args.fov, display)
+    if use_fake_calibration:
         print("CALIBRATION fake position_mm=[0.0, 0.0, -500.0] quaternion_wxyz=[1,0,0,0]")
+    lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
     track(
         lines, calibration, display, warp=args.warp or args.replay is None,
-        debug=args.debug,
+        debug=args.debug, initial_bias=desk_bias,
     )
 
 
