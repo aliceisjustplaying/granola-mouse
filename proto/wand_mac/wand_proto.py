@@ -11,9 +11,9 @@
 
 """THROWAWAY Mac-side absolute-pointing prototype. See ../PROTO_SPEC.md.
 
-Live tracking can be captured for replay with ``--record FILE``. The file is
-opened in append mode and receives every raw serial line, including CFG and
-unknown lines. Guided runs also interleave protocol step markers.
+Default: desk bias, flip flat, aim at screen center, press r, then point.
+Use ``--distance-mm MM`` for assumed device distance and ``--sens FACTOR`` for cursor gain.
+Use ``--camera`` only to run the legacy webcam ArUco calibration diagnostic.
 """
 
 import argparse
@@ -257,16 +257,24 @@ def matrix_to_quaternion(rotation: np.ndarray) -> np.ndarray:
     return q / np.linalg.norm(q)
 
 
-def fake_calibration() -> Calibration:
-    # Device marker faces the camera, centered 0.5 m in front of the display.
-    return Calibration(np.eye(3), np.array([0.0, 0.0, -500.0]))
+def assumed_calibration(distance_mm: float) -> Calibration:
+    """Place an identity-oriented device in front of the screen center."""
+    return Calibration(np.eye(3), np.array([0.0, 0.0, -distance_mm]))
+
+
+def select_calibration(
+    use_camera: bool, fov_deg: float, display: Display, distance_mm: float
+) -> Calibration:
+    if use_camera:
+        return camera_calibration(fov_deg, display)
+    return assumed_calibration(distance_mm)
 
 
 def camera_calibration(fov_deg: float, display: Display) -> Calibration:
     capture = cv2.VideoCapture(0)
     if not capture.isOpened():
         raise RuntimeError(
-            "Could not open webcam (check macOS Camera permission), or use --fake-calib."
+            "Could not open webcam (check macOS Camera permission)."
         )
 
     dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -289,7 +297,7 @@ def camera_calibration(fov_deg: float, display: Display) -> Calibration:
             ok, frame = capture.read()
             if not ok:
                 raise RuntimeError(
-                    "Webcam stopped producing frames; retry or use --fake-calib."
+                    "Webcam stopped producing frames; retry calibration."
                 )
             height, width = frame.shape[:2]
             focal = width / (2 * math.tan(math.radians(fov_deg) / 2))
@@ -486,6 +494,12 @@ def intersect_screen(
     position_mm: np.ndarray, rotation: np.ndarray, display: Display
 ):
     return intersect_screen_ray(position_mm, screen_pointing_ray(rotation), display)
+
+
+def scale_target_about_center(
+    target_px: np.ndarray, center_px: np.ndarray, sensitivity: float
+) -> np.ndarray:
+    return center_px + (target_px - center_px) * sensitivity
 
 
 class RollingRestDetector:
@@ -714,7 +728,7 @@ def make_ahrs():
 def track(
     lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
     initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG, guided=False,
-    recording=None, voice=True,
+    recording=None, voice=True, sensitivity=1.0,
 ):
     ahrs = make_ahrs()
 
@@ -922,6 +936,7 @@ def track(
             print(f"# !!! RECENTERED !!! recenters={recenter_count}", flush=True)
         target, ray, raw_hit_mm = intersect_screen_ray(ray_origin_mm, ray, display)
         if target is not None:
+            target = scale_target_about_center(target, display.center_px, sensitivity)
             filtered_target = cursor_filter.filter(target, t_us / 1e6)
             displayed_target = cursor.move(filtered_target)
             target_min = np.minimum(target_min, filtered_target)
@@ -1035,7 +1050,19 @@ def main():
         "--record", type=Path, metavar="FILE",
         help="append every raw serial line during live tracking",
     )
-    parser.add_argument("--fake-calib", action="store_true")
+    parser.add_argument(
+        "--camera", action="store_true",
+        help="run the legacy webcam ArUco calibration diagnostic",
+    )
+    parser.add_argument("--fake-calib", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--distance-mm", type=float, default=500.0, metavar="MM",
+        help="assumed device distance in front of screen center (default: 500)",
+    )
+    parser.add_argument(
+        "--sens", type=float, default=1.0, metavar="FACTOR",
+        help="cursor displacement gain about screen center (default: 1.0)",
+    )
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--warp", action="store_true", help="warp cursor during replay")
     parser.add_argument("--debug", action="store_true", help="show ray and raw intersection")
@@ -1054,6 +1081,8 @@ def main():
     args = parser.parse_args()
     if args.record is not None and args.replay is not None and not args.guided:
         parser.error("--record is only available during live tracking")
+    if args.distance_mm <= 0:
+        parser.error("--distance-mm must be greater than zero")
 
     if args.probe:
         lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
@@ -1066,9 +1095,7 @@ def main():
         f" px={display.width_px:.0f}x{display.height_px:.0f}"
         f" physical_mm={display.width_mm:.1f}x{display.height_mm:.1f}"
     )
-    desk_bias = None
-    use_fake_calibration = args.fake_calib or args.replay is not None
-    if not use_fake_calibration:
+    if args.replay is None:
         if args.guided:
             desk_instruction = "Place device flat on desk, hands off, press Enter"
             print(f"\nGUIDED PRE-TRACK — DESK BIAS\n{desk_instruction}\n")
@@ -1076,28 +1103,38 @@ def main():
             input()
         else:
             input("place device flat on desk, press Enter")
-        desk_lines = serial_lines(args.port, args.baud)
-        try:
-            desk_bias, desk_std = collect_gyro_bias(desk_lines, DESK_BIAS_SECONDS)
-        finally:
-            desk_lines.close()
-        print(
-            f"GYRO BIAS dps={np.round(desk_bias, 5).tolist()}"
-            f" std_dps={np.round(desk_std, 5).tolist()}"
-        )
-        if np.any(desk_std > 1.0):
-            print("WARNING gyro std > 1 dps: device was moving during desk bias")
+    desk_lines = (
+        replay_lines(args.replay)
+        if args.replay is not None
+        else serial_lines(args.port, args.baud)
+    )
+    try:
+        desk_bias, desk_std = collect_gyro_bias(desk_lines, DESK_BIAS_SECONDS)
+    finally:
+        close_desk_lines = getattr(desk_lines, "close", None)
+        if close_desk_lines is not None:
+            close_desk_lines()
+    print(
+        f"GYRO BIAS dps={np.round(desk_bias, 5).tolist()}"
+        f" std_dps={np.round(desk_std, 5).tolist()}"
+    )
+    if np.any(desk_std > 1.0):
+        print("WARNING gyro std > 1 dps: device was moving during desk bias")
 
-    if args.guided and not use_fake_calibration:
-        calibration_instruction = (
-            "Hold device up: USB down, screen facing webcam, half a meter away; "
-            "press spacebar when marker detected"
+    calibration = select_calibration(
+        args.camera and not args.fake_calib,
+        args.fov,
+        display,
+        args.distance_mm,
+    )
+    if not (args.camera and not args.fake_calib):
+        q = matrix_to_quaternion(calibration.rotation)
+        print(
+            "CALIBRATION assumed"
+            f" position_mm={np.round(calibration.position_mm, 1).tolist()}"
+            f" quaternion_wxyz={np.round(q, 5).tolist()}"
         )
-        print(f"\nGUIDED PRE-TRACK — CALIBRATION\n{calibration_instruction}\n")
-        speak(calibration_instruction)
-    calibration = fake_calibration() if use_fake_calibration else camera_calibration(args.fov, display)
-    if use_fake_calibration:
-        print("CALIBRATION fake position_mm=[0.0, 0.0, -500.0] quaternion_wxyz=[1,0,0,0]")
+    print("press r while aiming at screen center to calibrate pointing")
     lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
     track_options = dict(
         warp=args.warp or args.replay is None,
@@ -1106,6 +1143,7 @@ def main():
         mount_roll_deg=args.mount_roll,
         guided=args.guided,
         voice=args.voice and args.replay is None,
+        sensitivity=args.sens,
     )
     if args.record is not None and args.guided:
         with args.record.open("a", encoding="utf-8") as recording:

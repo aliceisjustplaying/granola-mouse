@@ -18,6 +18,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import imufusion
 import numpy as np
@@ -110,6 +111,35 @@ def elevation_curve(lines):
         float(match.group(1))
         for match in re.finditer(r"ray_az/el=[^/]+/([+-][0-9.]+)deg", output.getvalue())
     ]
+
+
+class CalibrationAndSensitivityTests(unittest.TestCase):
+    def test_default_calibration_uses_assumed_pose_without_camera_api(self):
+        with mock.patch.object(
+            wand_proto.cv2, "VideoCapture", side_effect=AssertionError("camera opened")
+        ):
+            calibration = wand_proto.select_calibration(
+                False, wand_proto.HORIZONTAL_FOV_DEG, DISPLAY, 725.0
+            )
+
+        np.testing.assert_array_equal(calibration.rotation, np.eye(3))
+        np.testing.assert_array_equal(
+            calibration.position_mm, np.array([0.0, 0.0, -725.0])
+        )
+
+    def test_sensitivity_scales_cursor_displacement_about_center_exactly(self):
+        raw_target = np.array([1170.25, 413.5])
+        unit = wand_proto.scale_target_about_center(
+            raw_target, DISPLAY.center_px, 1.0
+        )
+        doubled = wand_proto.scale_target_about_center(
+            raw_target, DISPLAY.center_px, 2.0
+        )
+
+        np.testing.assert_array_equal(unit, raw_target)
+        np.testing.assert_array_equal(
+            doubled - DISPLAY.center_px, 2.0 * (unit - DISPLAY.center_px)
+        )
 
 
 class GuidedStepEngineTests(unittest.TestCase):
