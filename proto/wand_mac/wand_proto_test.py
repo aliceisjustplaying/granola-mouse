@@ -112,6 +112,35 @@ def elevation_curve(lines):
     ]
 
 
+class GuidedStepEngineTests(unittest.TestCase):
+    def test_timed_step_advances_and_emits_end_then_start_markers(self):
+        markers = []
+        announcements = []
+        engine = wand_proto.StepEngine(
+            [("FIRST", "First motion", 2), ("SECOND", "Second motion", None)],
+            lambda step, name, event, t_us: markers.append(
+                (step, name, event, t_us)
+            ),
+            speaker=lambda _instruction: None,
+            announce=announcements.append,
+        )
+
+        engine.start(10.0)
+        engine.update(11.9, 1900)
+        self.assertEqual(markers, [(1, "FIRST", "START", None)])
+
+        engine.update(12.0, 2000)
+        self.assertEqual(
+            markers,
+            [
+                (1, "FIRST", "START", None),
+                (1, "FIRST", "END", 2000),
+                (2, "SECOND", "START", 2000),
+            ],
+        )
+        self.assertIn("GUIDED STEP 2/2", announcements[-1])
+
+
 class RecenterTests(unittest.TestCase):
     def test_full_recenter_maps_azimuth_and_elevation_offset_to_center(self):
         rotation = offset_pointing_rotation(20.0, 25.0)

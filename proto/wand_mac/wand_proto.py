@@ -13,12 +13,13 @@
 
 Live tracking can be captured for replay with ``--record FILE``. The file is
 opened in append mode and receives every raw serial line, including CFG and
-unknown lines.
+unknown lines. Guided runs also interleave protocol step markers.
 """
 
 import argparse
 import math
 import select
+import subprocess
 import sys
 import termios
 import time
@@ -65,6 +66,126 @@ MIN_CUTOFF = 1.0  # Hz: lower is steadier but adds lag.
 BETA = 0.007  # Higher follows fast motion more closely.
 D_CUTOFF = 1.0  # Hz: derivative smoothing.
 SERIAL_RECONNECT = object()
+
+# AIR round 6. A duration of None waits for a keypress; SPACE always advances,
+# while the two recenter steps also advance when their requested R key is pressed.
+PROTOCOL = [
+    ("FLIP_AND_CENTER", "Flip device flat like a remote, aim at screen center, press r", None),
+    ("HOLD_STILL", "Hold still", 10),
+    ("YAW_SWEEP", "Slow yaw sweep left-right", 15),
+    ("PITCH_SWEEP", "Slow pitch sweep up-down", 15),
+    ("CORNER_TL", "Aim at the top-left corner", 4),
+    ("CORNER_TR", "Aim at the top-right corner", 4),
+    ("CORNER_BR", "Aim at the bottom-right corner", 4),
+    ("CORNER_BL", "Aim at the bottom-left corner", 4),
+    ("DESK_REST", "Place device flat on desk, hands off", 60),
+    ("PICK_UP_AND_CENTER", "Pick up, aim at center, press r", None),
+    ("FREE_WAVE", "Free wave", 15),
+    ("DONE", "Done — press q", None),
+]
+
+
+def speak(instruction: str, enabled: bool = True):
+    """Ask macOS to speak without blocking, and tolerate a missing `say`."""
+    if not enabled:
+        return
+    try:
+        subprocess.Popen(
+            ["say", instruction],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError:
+        pass
+
+
+class StepEngine:
+    def __init__(self, protocol, marker, speaker=speak, announce=print):
+        self.protocol = protocol
+        self.marker = marker
+        self.speaker = speaker
+        self.announce = announce
+        self.index = -1
+        self.started_at = None
+        self.warning_spoken = False
+        self.finished = False
+
+    @property
+    def current(self):
+        if self.finished or self.index < 0:
+            return None
+        return self.protocol[self.index]
+
+    def start(self, now: float, last_t_us=None):
+        if not self.protocol:
+            self.finished = True
+            return
+        self.index = 0
+        self._start_current(now, last_t_us)
+
+    def _start_current(self, now: float, last_t_us):
+        name, instruction, _ = self.protocol[self.index]
+        self.started_at = now
+        self.warning_spoken = False
+        self.marker(self.index + 1, name, "START", last_t_us)
+        self.announce(
+            "\n" + "=" * 72 + "\n"
+            f"GUIDED STEP {self.index + 1}/{len(self.protocol)} — {name}\n"
+            f"{instruction}\n"
+            + "=" * 72
+        )
+        self.speaker(instruction)
+
+    def advance(self, now: float, last_t_us=None):
+        if self.current is None:
+            return
+        name, _, _ = self.current
+        self.marker(self.index + 1, name, "END", last_t_us)
+        self.index += 1
+        if self.index >= len(self.protocol):
+            self.finished = True
+            return
+        self._start_current(now, last_t_us)
+
+    def advance_for_key(self, key: str, now: float, last_t_us=None):
+        if self.current is None:
+            return
+        _, instruction, duration = self.current
+        if key == " " or (
+            key == "r" and duration is None and "press r" in instruction.lower()
+        ):
+            self.advance(now, last_t_us)
+
+    def update(self, now: float, last_t_us=None):
+        while self.current is not None:
+            _, _, duration = self.current
+            if duration is None:
+                return
+            elapsed = now - self.started_at
+            remaining = duration - elapsed
+            if duration >= 10 and remaining <= 3 and not self.warning_spoken:
+                self.speaker("3 seconds left")
+                self.warning_spoken = True
+            if remaining > 0:
+                return
+            # Anchor the following step to the scheduled boundary so sparse or
+            # replayed samples can advance through more than one timed step.
+            next_start = self.started_at + duration
+            self.advance(next_start, last_t_us)
+
+    def remaining_text(self, now: float):
+        if self.current is None:
+            return "complete"
+        duration = self.current[2]
+        if duration is None:
+            return "waiting for key"
+        return f"{max(0, math.ceil(duration - (now - self.started_at)))}s remaining"
+
+    def finish(self, last_t_us=None):
+        if self.current is not None:
+            name = self.current[0]
+            self.marker(self.index + 1, name, "END", last_t_us)
+            self.finished = True
 
 
 @dataclass
@@ -243,13 +364,17 @@ def replay_lines(path: Path):
         yield from replay
 
 
+def recording_lines(lines, recording):
+    for line in lines:
+        if line is not SERIAL_RECONNECT:
+            recording.write(line)
+            recording.flush()
+        yield line
+
+
 def recorded_lines(lines, path: Path):
     with path.open("a", encoding="utf-8") as recording:
-        for line in lines:
-            if line is not SERIAL_RECONNECT:
-                recording.write(line)
-                recording.flush()
-            yield line
+        yield from recording_lines(lines, recording)
 
 
 def serial_lines(port: str, baud: int):
@@ -521,7 +646,8 @@ def make_ahrs():
 
 def track(
     lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
-    initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG,
+    initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG, guided=False,
+    recording=None, voice=True,
 ):
     ahrs = make_ahrs()
 
@@ -566,12 +692,37 @@ def track(
     recenter_requested = False
     recenter_count = 0
     mount_correction = pointing_axis_roll(math.radians(mount_roll_deg))
+    protocol_elapsed = 0.0
+    protocol_last_t_us = None
+
+    def marker(step, name, event, t_us):
+        device_time = "-" if t_us is None else str(t_us)
+        marker_line = (
+            f"# STEP {step} {name} {event} host={time.time():.3f}"
+            f" t_us={device_time}"
+        )
+        print(marker_line, flush=True)
+        if recording is not None:
+            recording.write(marker_line + "\n")
+            recording.flush()
+
+    steps = StepEngine(
+        PROTOCOL,
+        marker,
+        speaker=lambda instruction: speak(instruction, enabled=voice),
+    ) if guided else None
+    if steps is not None:
+        steps.start(protocol_elapsed)
 
     for key, line in lines_with_keys(lines):
         if key == "q":
+            if steps is not None:
+                steps.finish(final_sample_us)
             break
         if key == "r":
             recenter_requested = True
+        if steps is not None and key is not None:
+            steps.advance_for_key(key, protocol_elapsed, final_sample_us)
         if line is SERIAL_RECONNECT:
             cursor_filter.reset()
             cursor.reset()
@@ -585,6 +736,11 @@ def track(
             continue
 
         _, t_us, gyro_raw, accel_raw = parsed
+        if protocol_last_t_us is not None and 0 < t_us - protocol_last_t_us <= 100_000:
+            protocol_elapsed += (t_us - protocol_last_t_us) / 1e6
+        protocol_last_t_us = t_us
+        if steps is not None:
+            steps.update(protocol_elapsed, t_us)
         gyro = AXIS_REMAP @ gyro_raw
         accel = AXIS_REMAP @ accel_raw
         sample_count += 1
@@ -617,12 +773,18 @@ def track(
             bias_samples.append(gyro)
             buffered.append((t_us, gyro, accel))
             if t_us - bias_start_us < BIAS_SECONDS * 1e6:
-                if t_us - last_hud_us >= 500_000:
-                    print(
+                hud_interval_us = 2_000_000 if guided else 500_000
+                if t_us - last_hud_us >= hud_interval_us:
+                    bias_text = (
                         f"BIAS {max(0, BIAS_SECONDS - (t_us - bias_start_us) / 1e6):.1f}s"
-                        f"  samples={len(bias_samples)}",
-                        flush=True,
+                        f"  samples={len(bias_samples)}"
                     )
+                    if steps is not None:
+                        bias_text = (
+                            f"GUIDED {steps.index + 1}/{len(PROTOCOL)}"
+                            f" {steps.remaining_text(protocol_elapsed)} | {bias_text}"
+                        )
+                    print(bias_text, flush=True)
                     last_hud_us = t_us
                 continue
             bias = np.mean(bias_samples, axis=0)
@@ -745,7 +907,8 @@ def track(
             last_bias_update_us = None
             bias_update_printed = False
 
-        if t_us - last_hud_us >= 500_000:
+        hud_interval_us = 2_000_000 if guided else 500_000
+        if t_us - last_hud_us >= hud_interval_us:
             sample_rate = max(0, len(rate_times) - 1)
             rolling_peak = max((sample for _, sample in gyro_peaks), default=0.0)
             saturation = " SATURATION!" if rolling_peak > 0.9 * gyro_range else ""
@@ -768,13 +931,21 @@ def track(
                     f"  ray_az/el={azimuth:+.1f}/{elevation:+.1f}deg"
                     f" hit_mm={hit_text}"
                 )
-            print(
+            hud_text = (
                 f"TRACK {('REST' if rest else 'MOVING'):6s}  rate={sample_rate:3d} Hz"
                 f"  drift={drift:+7.2f} deg/min  peak={rolling_peak:7.1f}/{gyro_range:.0f} dps"
-                f"{saturation}{clip_warning}  cursor={target_text}{debug_text}",
-                flush=True,
+                f"{saturation}{clip_warning}  cursor={target_text}{debug_text}"
             )
+            if steps is not None:
+                hud_text = (
+                    f"GUIDED {steps.index + 1}/{len(PROTOCOL)}"
+                    f" {steps.remaining_text(protocol_elapsed)} | {hud_text}"
+                )
+            print(hud_text, flush=True)
             last_hud_us = t_us
+
+    if steps is not None:
+        steps.finish(final_sample_us)
 
     if sample_count:
         span = target_max - target_min
@@ -808,12 +979,20 @@ def main():
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--warp", action="store_true", help="warp cursor during replay")
     parser.add_argument("--debug", action="store_true", help="show ray and raw intersection")
+    parser.add_argument(
+        "--guided", action="store_true",
+        help="coach the AIR round 6 protocol with instructions, timers, and markers",
+    )
+    parser.add_argument(
+        "--voice", action="store_true",
+        help="speak guided instructions via macOS say (default: silent)",
+    )
     parser.add_argument("--fov", type=float, default=HORIZONTAL_FOV_DEG,
                         help="approximate webcam horizontal FOV in degrees")
     parser.add_argument("--mount-roll", type=float, default=MOUNT_ROLL_DEG, metavar="DEG",
                         help="fixed calibration roll around the pointing axis")
     args = parser.parse_args()
-    if args.record is not None and args.replay is not None:
+    if args.record is not None and args.replay is not None and not args.guided:
         parser.error("--record is only available during live tracking")
 
     if args.probe:
@@ -830,7 +1009,13 @@ def main():
     desk_bias = None
     use_fake_calibration = args.fake_calib or args.replay is not None
     if not use_fake_calibration:
-        input("place device flat on desk, press Enter")
+        if args.guided:
+            desk_instruction = "Place device flat on desk, hands off, press Enter"
+            print(f"\nGUIDED PRE-TRACK — DESK BIAS\n{desk_instruction}\n")
+            speak(desk_instruction)
+            input()
+        else:
+            input("place device flat on desk, press Enter")
         desk_lines = serial_lines(args.port, args.baud)
         try:
             desk_bias, desk_std = collect_gyro_bias(desk_lines, DESK_BIAS_SECONDS)
@@ -843,16 +1028,35 @@ def main():
         if np.any(desk_std > 1.0):
             print("WARNING gyro std > 1 dps: device was moving during desk bias")
 
+    if args.guided and not use_fake_calibration:
+        calibration_instruction = (
+            "Hold device up: USB down, screen facing webcam, half a meter away; "
+            "press spacebar when marker detected"
+        )
+        print(f"\nGUIDED PRE-TRACK — CALIBRATION\n{calibration_instruction}\n")
+        speak(calibration_instruction)
     calibration = fake_calibration() if use_fake_calibration else camera_calibration(args.fov, display)
     if use_fake_calibration:
         print("CALIBRATION fake position_mm=[0.0, 0.0, -500.0] quaternion_wxyz=[1,0,0,0]")
     lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
-    if args.record is not None:
-        lines = recorded_lines(lines, args.record)
-    track(
-        lines, calibration, display, warp=args.warp or args.replay is None,
-        debug=args.debug, initial_bias=desk_bias, mount_roll_deg=args.mount_roll,
+    track_options = dict(
+        warp=args.warp or args.replay is None,
+        debug=args.debug,
+        initial_bias=desk_bias,
+        mount_roll_deg=args.mount_roll,
+        guided=args.guided,
+        voice=args.voice and args.replay is None,
     )
+    if args.record is not None and args.guided:
+        with args.record.open("a", encoding="utf-8") as recording:
+            track(
+                recording_lines(lines, recording), calibration, display,
+                recording=recording, **track_options,
+            )
+    elif args.record is not None:
+        track(recorded_lines(lines, args.record), calibration, display, **track_options)
+    else:
+        track(lines, calibration, display, **track_options)
 
 
 if __name__ == "__main__":
