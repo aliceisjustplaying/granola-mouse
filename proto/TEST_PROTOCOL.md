@@ -18,14 +18,21 @@ uv run proto/wand_mac/wand_proto.py --debug 2>&1 | tee proto/logs/air1.log
    Press **Enter**. Wait ~3 s.
    - Expect: `GYRO BIAS` around (6, 5.6, 0.3) dps and per-axis std < 1 dps.
    - Bad: a "moving" warning → redo (hands off the desk too).
-2. **Calibrate**: pick the device up, hold it **portrait, USB connector down,
-   screen facing the webcam**, ~50 cm away. Wait for the marker-detected
-   overlay in the preview, then press **spacebar**.
+2. **Calibrate**: pick the device up and hold it **USB connector pointing
+   down, screen facing the webcam**, ~50 cm away. (This is the one unique
+   pose those two constraints allow — the screen will be in landscape; that
+   is expected and fine.) Hold steady, wait for the marker-detected overlay
+   in the preview, then press **spacebar**.
+   (Do not worry about which way the marker "looks" — the `r` recenter in
+   step 3 absorbs orientation offsets.)
    - Expect: a `CALIBRATION position_mm=[..]` line; the z value ≈ your real
      distance in mm (sanity: ~-400 to -600).
-3. **Flip + recenter**: flip the device flat into your hand, screen up, top
-   edge (away from USB) pointing at the **center** of your laptop screen.
-   Hold it there and press **r**.
+3. **Flip + recenter**: flip the device flat into your hand, screen up, held
+   like a remote with the long axis pointing at the **center** of your laptop
+   screen (a short edge faces the screen). **Note whether the USB connector
+   is on your left or your right and tell us** — both work for this test, and
+   your sweep logs will tell us which grip to standardize. Hold it there and
+   press **r**.
    - Expect: `# recentered` and the cursor jumping to ~screen center.
 4. **Yaw sweep**: slowly rotate left ↔ right (like turning a key), ~10 s.
    - Expect: cursor tracks left/right, y roughly steady.
