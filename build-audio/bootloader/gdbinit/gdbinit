@@ -1,0 +1,2 @@
+source /Users/sarah/src/a/granola_esp32_hackathon/build-audio/bootloader/gdbinit/symbols
+source /Users/sarah/src/a/granola_esp32_hackathon/build-audio/bootloader/gdbinit/connect

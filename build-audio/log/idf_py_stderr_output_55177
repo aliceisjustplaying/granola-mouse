@@ -1,0 +1,5 @@
+Command: cmake -G Ninja -B /Users/sarah/src/a/granola_esp32_hackathon/build-audio -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/sarah/.espressif/tools/python/v6.0.2/venv/bin/python -DESP_PLATFORM=1 -DGRANOLA_PROTO_AUDIO=ON -DCCACHE_ENABLE=False /Users/sarah/src/a/granola_esp32_hackathon
+Loading defaults file /Users/sarah/src/a/granola_esp32_hackathon/sdkconfig.defaults...
+NOTE: Kconfig parser version: 1
+NOTE: Kconfig defaults policy: use sdkconfig
+NOTE: Status: Finished successfully

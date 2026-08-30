@@ -1,0 +1,19 @@
+Command: ninja all
+[1/10] Performing build step for 'bootloader'
+[1/1] cd /Users/sarah/src/a/granola_esp32_hackathon/build-audio/bootloader && /Users/sarah/.espressif/tools/python/v6.0.2/venv/bin/python /Users/sarah/.espressif/v6.0.2/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /Users/sarah/src/a/granola_esp32_hackathon/build-audio/bootloader/bootloader.bin
+Bootloader binary size 0x3b90 bytes. 0x4470 bytes (53%) free.
+[2/10] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/audio_stream.c.obj
+[3/10] No install step for 'bootloader'
+[4/10] Completed 'bootloader'
+[5/10] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj
+[6/10] Linking C static library esp-idf/main/libmain.a
+[7/10] Generating esp-idf/esp_system/ld/sections.ld
+[8/10] Linking CXX executable wand_proto.elf
+[9/10] Generating binary image from built executable
+esptool v5.3.1
+Creating ESP32-S3 image...
+Merged 3 ELF sections.
+Successfully created ESP32-S3 image.
+Generated /Users/sarah/src/a/granola_esp32_hackathon/build-audio/wand_proto.bin
+[10/10] cd /Users/sarah/src/a/granola_esp32_hackathon/build-audio && /Users/sarah/.espressif/tools/python/v6.0.2/venv/bin/python /Users/sarah/.espressif/v6.0.2/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /Users/sarah/src/a/granola_esp32_hackathon/build-audio/partition_table/partition-table.bin /Users/sarah/src/a/granola_esp32_hackathon/build-audio/wand_proto.bin
+wand_proto.bin binary size 0x746d0 bytes. Smallest app partition is 0x177000 bytes. 0x102930 bytes (69%) free.

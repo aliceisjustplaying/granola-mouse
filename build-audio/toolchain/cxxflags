@@ -1,0 +1,7 @@
+-mlongcalls
+-fno-builtin-memcpy
+-fno-builtin-memset
+-fno-builtin-bzero
+-mdisable-hardware-atomics
+"-specs=/Users/sarah/src/a/granola_esp32_hackathon/build-audio/specs/picolibc.specs"
+-fno-rtti

@@ -19,6 +19,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "ble_mouse.h"
 #include "proto_badge.h"
 #include "proto_marker.h"
 #include "qmi8658.h"
@@ -412,6 +413,7 @@ static void imu_sample_task(void *context)
                 telemetry_values[3] = sample.data.accelX;
                 telemetry_values[4] = sample.data.accelY;
                 telemetry_values[5] = sample.data.accelZ;
+                ble_mouse_update_gyro(sample.data.gyroX, sample.data.gyroZ);
                 if (xQueueSend(pending_imu, &sample, 0) != pdTRUE) {
                     pending_imu_sample_t discarded;
                     (void)xQueueReceive(pending_imu, &discarded, 0);
@@ -448,6 +450,7 @@ void app_main(void)
         printf("# FATAL start telemetry task\n");
         abort();
     }
+    ble_mouse_start(serial_output_mutex);
 #ifdef GRANOLA_PROTO_AUDIO
     check(audio_stream_start(bus, serial_output_mutex), "start audio stream");
 #endif

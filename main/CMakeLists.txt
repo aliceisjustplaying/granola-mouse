@@ -1,9 +1,15 @@
-set(proto_sources "main.c")
+set(proto_sources
+  "main.c"
+  "ble_mouse.c"
+)
 set(proto_private_requires
+  bt
   driver
   esp_driver_i2s
+  esp_hid
   esp_lcd_co5300
   esp_timer
+  nvs_flash
   waveshare__qmi8658
 )
 
