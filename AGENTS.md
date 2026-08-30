@@ -9,6 +9,18 @@
 - Binary captures (.bin, PCM): only ever analyze with scripts; never dump.
 - proto/logs/ and /tmp captures are radioactive: sample, don't slurp.
 
+## Images — the #1 documented agent killer in this repo
+- Do NOT view/read image files (plot PNGs, spectrograms, screenshots). One
+  spectrogram PNG is 1-2 MB ≈ a huge bite of your context; an agent died here
+  at 249K tokens from viewing four of them (session autopsy on record).
+- Verify signals NUMERICALLY: compute metrics (band power, tilt dB, peak bins)
+  with a short script and read the printed numbers. If a human needs the
+  image, just report its file path.
+
+## Command output
+- Always tail long-running command output: `./scripts/build audio 2>&1 | tail -20`.
+  Full idf.py output is ~100 KB per build — never ingest it raw.
+
 ## Git
 - Do NOT run `git commit` — the parent session owns git.
 
