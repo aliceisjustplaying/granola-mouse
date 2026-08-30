@@ -49,7 +49,9 @@ DEFAULT_PORT = "/dev/cu.usbmodem101"
 # Name, instruction, duration. Action windows deliberately include time for the
 # user's reaction after GO; analysis gates on the whole marked window.
 GUIDED_PROTOCOL = [
-    ("PREP_STILL", "Hands ON the device like a mouse, completely still", 3.0),
+    ("PREP_STILL",
+     "Place device at your LEFT endpoint. Hands ON like a mouse, completely still",
+     3.0),
     ("BRISK_R1", "Slide RIGHT briskly between your two endpoints — GO", 3.5),
     ("FREEZE", "FREEZE — do not move at all", 3.0),
     ("BRISK_L1", "Slide LEFT briskly between your two endpoints — GO", 3.5),
