@@ -125,6 +125,7 @@ def camera_calibration(fov_deg: float, display: Display) -> Calibration:
         dtype=np.float32,
     )
     camera_to_screen = np.diag([1.0, -1.0, -1.0])
+    # Screen +y is up from center, so a top-edge camera is at +height/2.
     camera_position = np.array(
         [0.0, display.height_mm / 2 + CAMERA_Y_OFFSET_MM, 0.0]
     )
@@ -218,23 +219,40 @@ def replay_lines(path: Path):
 
 
 def serial_lines(port: str, baud: int):
-    print(f"Opening {port} at {baud} baud", file=sys.stderr)
-    with serial.Serial(port, baudrate=baud, timeout=1.0) as connection:
-        while True:
-            line = connection.readline()
-            if line:
-                yield line.decode("utf-8", errors="replace")
+    while True:
+        print(f"Opening {port} at {baud} baud", file=sys.stderr)
+        try:
+            with serial.Serial(port, baudrate=baud, timeout=1.0) as connection:
+                while True:
+                    line = connection.readline()
+                    if line:
+                        yield line.decode("utf-8", errors="replace")
+        except (OSError, serial.SerialException):
+            print("# serial lost, reconnecting...", file=sys.stderr, flush=True)
+            time.sleep(0.5)
+
+
+def clean_interrupts(lines):
+    try:
+        yield from lines
+    except KeyboardInterrupt:
+        return
 
 
 def probe(lines):
     last_print = -math.inf
-    for line in lines:
+    sample_count = 0
+    first_sample_us = final_sample_us = None
+    for line in clean_interrupts(lines):
         parsed = parse_line(line)
         if not parsed or parsed[0] != "IMU":
             continue
         _, t_us, gyro_raw, accel_raw = parsed
         gyro = AXIS_REMAP @ gyro_raw
         accel = AXIS_REMAP @ accel_raw
+        sample_count += 1
+        first_sample_us = t_us if first_sample_us is None else first_sample_us
+        final_sample_us = t_us
         if t_us / 1e6 - last_print >= 0.1:
             last_print = t_us / 1e6
             print(
@@ -242,6 +260,8 @@ def probe(lines):
                 f"gyro dps  x={gyro[0]:+8.2f} y={gyro[1]:+8.2f} z={gyro[2]:+8.2f}  "
                 f"accel g  x={accel[0]:+7.3f} y={accel[1]:+7.3f} z={accel[2]:+7.3f}"
             )
+    duration = ((final_sample_us - first_sample_us) / 1e6) if sample_count > 1 else 0
+    print(f"SUMMARY samples={sample_count} duration={duration:.3f}s")
 
 
 def intersect_screen(
@@ -249,18 +269,19 @@ def intersect_screen(
 ):
     ray = rotation[:, 1]  # Device/marker up is the pointing direction.
     if abs(ray[2]) < 1e-4:
-        return None, ray
-    distance = -position_mm[2] / ray[2]
+        return None, ray, None
+    distance = (0.0 - position_mm[2]) / ray[2]
     if distance <= 0:
-        return None, ray
+        return None, ray, None
     hit_mm = position_mm + distance * ray
-    target = display.center_px + np.array(
-        [hit_mm[0] * display.width_px / display.width_mm,
-         -hit_mm[1] * display.height_px / display.height_mm]
+    # Screen y is up from its center; Quartz y is down from the desktop's top.
+    target = np.array(
+        [display.center_px[0] + hit_mm[0] * display.width_px / display.width_mm,
+         display.center_px[1] - hit_mm[1] * display.height_px / display.height_mm]
     )
     target[0] = np.clip(target[0], display.origin_x, display.origin_x + display.width_px - 1)
     target[1] = np.clip(target[1], display.origin_y, display.origin_y + display.height_px - 1)
-    return target, ray
+    return target, ray, hit_mm
 
 
 class FractionalCursor:
@@ -285,15 +306,7 @@ class FractionalCursor:
         return self.integer.copy()
 
 
-def heading_deg(rotation: np.ndarray, ray: np.ndarray) -> float:
-    # In pointing posture, this is the actual horizontal ray angle.
-    if abs(ray[2]) > 0.2:
-        return math.degrees(math.atan2(ray[0], ray[2]))
-    normal = rotation[:, 2]
-    return math.degrees(math.atan2(normal[0], normal[2]))
-
-
-def track(lines, calibration: Calibration, display: Display, warp: bool):
+def track(lines, calibration: Calibration, display: Display, warp: bool, debug: bool):
     ahrs = imufusion.Ahrs()
     ahrs.set_settings(
         imufusion.AhrsSettings(
@@ -315,21 +328,29 @@ def track(lines, calibration: Calibration, display: Display, warp: bool):
     last_t_us = None
     gyro_range = 2048.0
     peak_gyro = 0.0
+    clip_count = 0
+    clip_times = deque()
     cursor = FractionalCursor(warp)
+    # Translation is not tracked after calibration; retaining the webcam-height
+    # y origin makes a level post-flip ray target the top edge forever.
+    ray_origin_mm = calibration.position_mm.copy()
+    ray_origin_mm[1] = 0.0
     displayed_target = None
+    raw_hit_mm = None
+    ray = np.array([0.0, 1.0, 0.0])
     rate_times = deque()
     drift_samples = deque()
-    unwrapped_heading = None
-    previous_heading = None
+    rest_elapsed = 0.0
+    integrated_yaw = 0.0
     drift = 0.0
-    previous_rest = False
     last_hud_us = -10**18
     sample_count = 0
-    first_sample_us = final_sample_us = None
+    final_sample_us = None
+    duration = 0.0
     target_min = np.array([math.inf, math.inf])
     target_max = np.array([-math.inf, -math.inf])
 
-    for line in lines:
+    for line in clean_interrupts(lines):
         parsed = parse_line(line)
         if not parsed:
             continue
@@ -341,12 +362,23 @@ def track(lines, calibration: Calibration, display: Display, warp: bool):
         gyro = AXIS_REMAP @ gyro_raw
         accel = AXIS_REMAP @ accel_raw
         sample_count += 1
-        first_sample_us = t_us if first_sample_us is None else first_sample_us
+        if final_sample_us is not None and 0 < t_us - final_sample_us <= 100_000:
+            duration += (t_us - final_sample_us) / 1e6
         final_sample_us = t_us
         peak_gyro = max(peak_gyro, float(np.max(np.abs(gyro))))
+        if last_t_us is not None and t_us <= last_t_us:
+            rate_times.clear()
+            clip_times.clear()
+            last_hud_us = -10**18
+        if np.any(np.abs(gyro) >= 2040.0):
+            # Clipping loses angular motion, so orientation is untrustworthy after a clip.
+            clip_count += 1
+            clip_times.append(t_us)
         rate_times.append(t_us)
         while rate_times and t_us - rate_times[0] > 1_000_000:
             rate_times.popleft()
+        while clip_times and t_us - clip_times[0] > 2_000_000:
+            clip_times.popleft()
 
         if bias is None:
             if bias_start_us is None:
@@ -386,7 +418,7 @@ def track(lines, calibration: Calibration, display: Display, warp: bool):
         corrected_gyro = gyro - bias
         ahrs.update_no_magnetometer(corrected_gyro, accel)
         rotation = alignment @ imufusion.quaternion_to_matrix(ahrs.get_quaternion())
-        target, ray = intersect_screen(calibration.position_mm, rotation, display)
+        target, ray, raw_hit_mm = intersect_screen(ray_origin_mm, rotation, display)
         if target is not None:
             displayed_target = cursor.move(target)
             target_min = np.minimum(target_min, target)
@@ -396,44 +428,50 @@ def track(lines, calibration: Calibration, display: Display, warp: bool):
             np.linalg.norm(corrected_gyro) < REST_GYRO_DPS
             and abs(np.linalg.norm(accel) - 1.0) < REST_ACCEL_G_TOLERANCE
         )
-        heading = heading_deg(rotation, ray)
-        if previous_heading is None:
-            unwrapped_heading = heading
-        else:
-            delta_heading = (heading - previous_heading + 180) % 360 - 180
-            unwrapped_heading += delta_heading
-        previous_heading = heading
         if rest:
-            if not previous_rest:
-                drift_samples.clear()
-            drift_samples.append((t_us / 1e6, unwrapped_heading))
-            while drift_samples and t_us / 1e6 - drift_samples[0][0] > 60:
+            gravity_axis = -accel / np.linalg.norm(accel)
+            yaw_rate = float(np.dot(corrected_gyro, gravity_axis))
+            rest_elapsed += dt
+            integrated_yaw += yaw_rate * dt
+            drift_samples.append((rest_elapsed, integrated_yaw))
+            while drift_samples and rest_elapsed - drift_samples[0][0] > 60:
                 drift_samples.popleft()
             if len(drift_samples) >= 2 and drift_samples[-1][0] - drift_samples[0][0] >= 0.5:
                 times = np.array([item[0] for item in drift_samples])
                 angles = np.array([item[1] for item in drift_samples])
                 drift = float(np.polyfit(times - times[0], angles, 1)[0] * 60)
-        else:
-            drift_samples.clear()
-        previous_rest = rest
 
         if t_us - last_hud_us >= 500_000:
             sample_rate = max(0, len(rate_times) - 1)
             saturation = " SATURATION!" if peak_gyro > 0.9 * gyro_range else ""
+            clip_warning = " CLIP!" if clip_times else ""
             target_text = (
                 f"{displayed_target[0]:.0f},{displayed_target[1]:.0f}"
                 if displayed_target is not None else "no intersection"
             )
+            debug_text = ""
+            if debug:
+                azimuth = math.degrees(math.atan2(ray[0], ray[2]))
+                elevation = math.degrees(
+                    math.atan2(ray[1], math.hypot(ray[0], ray[2]))
+                )
+                hit_text = (
+                    f"{raw_hit_mm[0]:+.1f},{raw_hit_mm[1]:+.1f}"
+                    if raw_hit_mm is not None else "none"
+                )
+                debug_text = (
+                    f"  ray_az/el={azimuth:+.1f}/{elevation:+.1f}deg"
+                    f" hit_mm={hit_text}"
+                )
             print(
                 f"TRACK {('REST' if rest else 'MOVING'):6s}  rate={sample_rate:3d} Hz"
                 f"  drift={drift:+7.2f} deg/min  peak={peak_gyro:7.1f}/{gyro_range:.0f} dps"
-                f"{saturation}  cursor={target_text}",
+                f"{saturation}{clip_warning}  cursor={target_text}{debug_text}",
                 flush=True,
             )
             last_hud_us = t_us
 
     if sample_count:
-        duration = ((final_sample_us - first_sample_us) / 1e6) if sample_count > 1 else 0
         span = target_max - target_min
         span_text = (
             f"[{span[0]:.2f}, {span[1]:.2f}]"
@@ -441,8 +479,8 @@ def track(lines, calibration: Calibration, display: Display, warp: bool):
         )
         print(
             f"SUMMARY samples={sample_count} duration={duration:.3f}s"
-            f" peak_gyro={peak_gyro:.2f}dps drift={drift:+.3f}deg/min"
-            f" target_span_px={span_text}"
+            f" peak_gyro={peak_gyro:.2f}dps clips={clip_count}"
+            f" drift={drift:+.3f}deg/min target_span_px={span_text}"
         )
     elif bias_samples:
         print("SUMMARY replay ended before bias calibration completed")
@@ -458,6 +496,7 @@ def main():
     parser.add_argument("--fake-calib", action="store_true")
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--warp", action="store_true", help="warp cursor during replay")
+    parser.add_argument("--debug", action="store_true", help="show ray and raw intersection")
     parser.add_argument("--fov", type=float, default=HORIZONTAL_FOV_DEG,
                         help="approximate webcam horizontal FOV in degrees")
     args = parser.parse_args()
@@ -476,12 +515,17 @@ def main():
     calibration = fake_calibration() if args.fake_calib else camera_calibration(args.fov, display)
     if args.fake_calib:
         print("CALIBRATION fake position_mm=[0.0, 0.0, -500.0] quaternion_wxyz=[1,0,0,0]")
-    track(lines, calibration, display, warp=args.warp or args.replay is None)
+    track(
+        lines, calibration, display, warp=args.warp or args.replay is None,
+        debug=args.debug,
+    )
 
 
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        pass
     except (RuntimeError, OSError, serial.SerialException) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         raise SystemExit(1)
