@@ -117,6 +117,24 @@ granola_esp32_hackathon/
     └── echo/echo_ranger.{h,cpp}      # ★ stretch
 ```
 
+## TABLE mode: two independent implementations (decision 2026-08-30)
+
+Table tracking ships as two side-by-side modes — neither replaces the other:
+
+- **table-imu**: ZUPT stroke dead reckoning (proven on real captures:
+  ~10 cm slides recovered at 5–10%; continuous drags — e.g. a 3.2 s circle —
+  blow up as t² physics predicts). Enhancements (planar constraint, vibration
+  motion gating, micro-rest ZUPT) must preserve baseline stroke behavior or
+  stay opt-in.
+- **table-acoustic**: CAT-lite (MobiCom '16) — the MacBook's stereo speakers
+  emit inaudible ~19/20 kHz tones as a spatially separated beacon pair; the
+  device mic (ES8311) streams to the Mac, which tracks per-tone phase → 2D
+  relative position without error accumulation, fused with IMU. Separate
+  firmware variant (GRANOLA_PROTO_AUDIO) and separate host script.
+
+The mode manager treats AIR / TABLE-IMU / TABLE-ACOUSTIC as distinct modes
+with per-mode axis conventions (device is held differently in each).
+
 ## Key decisions
 
 1. **NimBLE, not Bluedroid** — smaller RAM/flash; we only need peripheral +
