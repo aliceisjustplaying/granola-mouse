@@ -369,9 +369,10 @@ class RecenterTests(unittest.TestCase):
         self.assertAlmostEqual(pitch_target[0], DISPLAY.center_px[0], places=9)
         self.assertLess(pitch_target[1] - DISPLAY.center_px[1], 0.0)
 
-    def test_physical_left_positive_body_z_rotation_moves_cursor_left(self):
-        # Body +x points at the screen and gravity is on body -z, matching the
-        # annotated hardware finding. Positive body +z rotation is leftward.
+    def test_positive_body_z_rotation_moves_cursor_right(self):
+        # Hardware-determined (live test 2026-08-30): with the pixel-stage
+        # horizontal mirror, positive body +z rotation moves the cursor RIGHT;
+        # the user's physical-left is negative body z on this device.
         centered = SCREEN_FROM_FLAT_BODY.copy()
         physical_left = centered.copy()
         for _ in range(10):
@@ -381,7 +382,7 @@ class RecenterTests(unittest.TestCase):
             CALIBRATION.position_mm, physical_left, DISPLAY
         )
 
-        self.assertLess(target[0] - DISPLAY.center_px[0], 0.0)
+        self.assertGreater(target[0] - DISPLAY.center_px[0], 0.0)
         self.assertAlmostEqual(target[1], DISPLAY.center_px[1], places=9)
 
 

@@ -63,6 +63,10 @@ CAMERA_MOUNT_ROLL_DEG = -90.0
 # With body +x pointing forward, positive body +z yaw (physical left) already
 # moves toward negative screen x; no additional horizontal mirror is needed.
 SCREEN_X_SIGN = 1.0
+# Hardware-determined horizontal mirror applied at the PIXEL stage (mirroring
+# about screen center commutes with recenter and sens; a ray-space flip would
+# break rotation composition). User-left rotation must move the cursor left.
+PIXEL_X_MIRROR = True
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
@@ -507,8 +511,9 @@ def intersect_screen_ray(
         return None, ray, None
     hit_mm = position_mm + distance * ray
     # Screen y is up from its center; Quartz y is down from the desktop's top.
+    x_sign = -1.0 if PIXEL_X_MIRROR else 1.0
     target = np.array(
-        [display.center_px[0] + hit_mm[0] * display.width_px / display.width_mm,
+        [display.center_px[0] + x_sign * hit_mm[0] * display.width_px / display.width_mm,
          display.center_px[1] - hit_mm[1] * display.height_px / display.height_mm]
     )
     target[0] = np.clip(target[0], display.origin_x, display.origin_x + display.width_px - 1)
