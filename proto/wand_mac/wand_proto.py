@@ -39,11 +39,18 @@ MARKER_SIDE_MM = 18.9
 HORIZONTAL_FOV_DEG = 65.0
 CAMERA_Y_OFFSET_MM = 0.0  # Camera above the physical display edge, if applicable.
 AXIS_REMAP = np.eye(3)  # Unknown board mounting; determine with --probe.
+# The on-device marker is rendered about 90 degrees from its assumed orientation,
+# baking roll into calibration. Confirm this sign/value empirically on hardware.
+MOUNT_ROLL_DEG = 90.0
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
 REST_GYRO_DPS = 1.0
 REST_ACCEL_G_TOLERANCE = 0.08
+REST_BIAS_DELAY_SECONDS = 1.5
+REST_BIAS_UPDATE_SECONDS = 1.0
+REST_BIAS_LEAK = 0.1
+GYRO_PEAK_WINDOW_SECONDS = 2.0
 # Cursor feel knobs for the final pixel-coordinate one-euro filter.
 MIN_CUTOFF = 1.0  # Hz: lower is steadier but adds lag.
 BETA = 0.007  # Higher follows fast motion more closely.
@@ -416,9 +423,14 @@ def yaw_rotation(angle: float):
     return np.array([[cosine, 0.0, sine], [0.0, 1.0, 0.0], [-sine, 0.0, cosine]])
 
 
+def pointing_axis_roll(angle: float):
+    """Roll around device +y, its pointing axis."""
+    return yaw_rotation(angle)
+
+
 def track(
     lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
-    initial_bias=None,
+    initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG,
 ):
     ahrs = imufusion.Ahrs()
     ahrs.set_settings(
@@ -441,6 +453,7 @@ def track(
     last_t_us = None
     gyro_range = 2048.0
     peak_gyro = 0.0
+    gyro_peaks = deque()
     clip_count = 0
     clip_times = deque()
     cursor_filter = OneEuroFilter()
@@ -456,6 +469,10 @@ def track(
     drift_samples = deque()
     rest_elapsed = 0.0
     integrated_yaw = 0.0
+    rest_start_us = None
+    rest_bias_samples = deque()
+    last_bias_update_us = None
+    bias_update_printed = False
     drift = 0.0
     last_hud_us = -10**18
     sample_count = 0
@@ -465,6 +482,8 @@ def track(
     target_max = np.array([-math.inf, -math.inf])
     yaw_reference = np.eye(3)
     recenter_requested = False
+    recenter_count = 0
+    mount_correction = pointing_axis_roll(math.radians(mount_roll_deg))
 
     for key, line in lines_with_keys(lines):
         if key == "q":
@@ -490,11 +509,16 @@ def track(
         if final_sample_us is not None and 0 < t_us - final_sample_us <= 100_000:
             duration += (t_us - final_sample_us) / 1e6
         final_sample_us = t_us
-        peak_gyro = max(peak_gyro, float(np.max(np.abs(gyro))))
+        sample_peak = float(np.max(np.abs(gyro)))
+        peak_gyro = max(peak_gyro, sample_peak)
         if last_t_us is not None and t_us <= last_t_us:
             rate_times.clear()
+            gyro_peaks.clear()
             clip_times.clear()
             last_hud_us = -10**18
+        gyro_peaks.append((t_us, sample_peak))
+        while gyro_peaks and t_us - gyro_peaks[0][0] > GYRO_PEAK_WINDOW_SECONDS * 1e6:
+            gyro_peaks.popleft()
         if np.any(np.abs(gyro) >= 2040.0):
             # Clipping loses angular motion, so orientation is untrustworthy after a clip.
             clip_count += 1
@@ -529,7 +553,7 @@ def track(
                 last_t_us = buffered_t
             # AHRS owns gravity correction; this rigid alignment gives it the
             # webcam-observed device->screen yaw and position at calibration.
-            alignment = calibration.rotation @ imufusion.quaternion_to_matrix(
+            alignment = calibration.rotation @ mount_correction @ imufusion.quaternion_to_matrix(
                 ahrs.get_quaternion()
             ).T
             buffered.clear()
@@ -541,7 +565,7 @@ def track(
             ahrs.set_sample_period(1.0 / 200.0)
             for _ in range(601):  # Complete Fusion's 3 s startup instantaneously.
                 ahrs.update_no_magnetometer(np.zeros(3), accel)
-            alignment = calibration.rotation @ imufusion.quaternion_to_matrix(
+            alignment = calibration.rotation @ mount_correction @ imufusion.quaternion_to_matrix(
                 ahrs.get_quaternion()
             ).T
             last_t_us = t_us
@@ -561,9 +585,10 @@ def track(
             yaw_reference = yaw_rotation(-azimuth) @ yaw_reference
             rotation = yaw_reference @ base_rotation
             recenter_requested = False
+            recenter_count += 1
             cursor_filter.reset()
             cursor.reset()
-            print("# recentered", flush=True)
+            print(f"# !!! RECENTERED !!! recenters={recenter_count}", flush=True)
         target, ray, raw_hit_mm = intersect_screen(ray_origin_mm, rotation, display)
         if target is not None:
             filtered_target = cursor_filter.filter(target, t_us / 1e6)
@@ -580,6 +605,30 @@ def track(
             and abs(np.linalg.norm(accel) - 1.0) < REST_ACCEL_G_TOLERANCE
         )
         if rest:
+            if rest_start_us is None:
+                rest_start_us = t_us
+                last_bias_update_us = None
+                bias_update_printed = False
+            rest_bias_samples.append((t_us, gyro.copy()))
+            while (
+                rest_bias_samples
+                and t_us - rest_bias_samples[0][0] > REST_BIAS_UPDATE_SECONDS * 1e6
+            ):
+                rest_bias_samples.popleft()
+            if (
+                t_us - rest_start_us >= REST_BIAS_DELAY_SECONDS * 1e6
+                and (
+                    last_bias_update_us is None
+                    or t_us - last_bias_update_us >= REST_BIAS_UPDATE_SECONDS * 1e6
+                )
+            ):
+                rest_mean = np.mean([sample for _, sample in rest_bias_samples], axis=0)
+                bias = (1.0 - REST_BIAS_LEAK) * bias + REST_BIAS_LEAK * rest_mean
+                last_bias_update_us = t_us
+                if not bias_update_printed:
+                    print(f"# bias updated {np.round(bias, 5).tolist()}", flush=True)
+                    bias_update_printed = True
+
             gravity_axis = -accel / np.linalg.norm(accel)
             yaw_rate = float(np.dot(corrected_gyro, gravity_axis))
             rest_elapsed += dt
@@ -591,10 +640,16 @@ def track(
                 times = np.array([item[0] for item in drift_samples])
                 angles = np.array([item[1] for item in drift_samples])
                 drift = float(np.polyfit(times - times[0], angles, 1)[0] * 60)
+        else:
+            rest_start_us = None
+            rest_bias_samples.clear()
+            last_bias_update_us = None
+            bias_update_printed = False
 
         if t_us - last_hud_us >= 500_000:
             sample_rate = max(0, len(rate_times) - 1)
-            saturation = " SATURATION!" if peak_gyro > 0.9 * gyro_range else ""
+            rolling_peak = max((sample for _, sample in gyro_peaks), default=0.0)
+            saturation = " SATURATION!" if rolling_peak > 0.9 * gyro_range else ""
             clip_warning = " CLIP!" if clip_times else ""
             target_text = (
                 f"{displayed_target[0]:.0f},{displayed_target[1]:.0f}"
@@ -616,7 +671,7 @@ def track(
                 )
             print(
                 f"TRACK {('REST' if rest else 'MOVING'):6s}  rate={sample_rate:3d} Hz"
-                f"  drift={drift:+7.2f} deg/min  peak={peak_gyro:7.1f}/{gyro_range:.0f} dps"
+                f"  drift={drift:+7.2f} deg/min  peak={rolling_peak:7.1f}/{gyro_range:.0f} dps"
                 f"{saturation}{clip_warning}  cursor={target_text}{debug_text}",
                 flush=True,
             )
@@ -630,7 +685,7 @@ def track(
         )
         print(
             f"SUMMARY samples={sample_count} duration={duration:.3f}s"
-            f" peak_gyro={peak_gyro:.2f}dps clips={clip_count}"
+            f" peak_gyro={peak_gyro:.2f}dps clips={clip_count} recenters={recenter_count}"
             f" drift={drift:+.3f}deg/min target_span_px={span_text}"
         )
     elif bias_samples:
@@ -652,6 +707,8 @@ def main():
     parser.add_argument("--debug", action="store_true", help="show ray and raw intersection")
     parser.add_argument("--fov", type=float, default=HORIZONTAL_FOV_DEG,
                         help="approximate webcam horizontal FOV in degrees")
+    parser.add_argument("--mount-roll", type=float, default=MOUNT_ROLL_DEG, metavar="DEG",
+                        help="fixed calibration roll around the pointing axis")
     args = parser.parse_args()
 
     if args.probe:
@@ -687,7 +744,7 @@ def main():
     lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
     track(
         lines, calibration, display, warp=args.warp or args.replay is None,
-        debug=args.debug, initial_bias=desk_bias,
+        debug=args.debug, initial_bias=desk_bias, mount_roll_deg=args.mount_roll,
     )
 
 
