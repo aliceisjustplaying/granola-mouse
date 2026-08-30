@@ -48,6 +48,9 @@ AXIS_REMAP = np.eye(3)  # Unknown board mounting; determine with --probe.
 # The on-device marker is rendered about 90 degrees from its assumed orientation,
 # baking roll into calibration. Hardware testing found +90 inverts left/right.
 MOUNT_ROLL_DEG = -90.0
+# Hardware round 7: body +z physical-left yaw otherwise moved screen x right.
+# Apply this once when converting the tracked pointing ray to screen coordinates.
+SCREEN_X_SIGN = -1.0
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
@@ -55,8 +58,12 @@ ALIGNMENT_SECONDS = 0.5
 AHRS_STARTUP_SECONDS = 3.0
 AHRS_SAMPLE_RATE_HZ = 200
 AHRS_REJECTION_TIMEOUT_SECONDS = 5
-REST_GYRO_DPS = 1.0
-REST_ACCEL_G_TOLERANCE = 0.08
+REST_WINDOW_SECONDS = 0.5
+REST_WINDOW_MIN_SPAN_FRACTION = 0.9
+# air4 settled desk gyro deviation is ~0.83 dps median, while YAW_SWEEP's
+# minimum is 2.05 dps. Acceleration deviation on the settled desk is <0.01 g.
+REST_GYRO_STD_DPS = 1.5
+REST_ACCEL_STD_G = 0.02
 REST_BIAS_DELAY_SECONDS = 1.5
 REST_BIAS_UPDATE_SECONDS = 1.0
 REST_BIAS_LEAK = 0.1
@@ -449,10 +456,16 @@ def probe(lines):
     print(f"SUMMARY samples={sample_count} duration={duration:.3f}s")
 
 
-def intersect_screen(
-    position_mm: np.ndarray, rotation: np.ndarray, display: Display
+def screen_pointing_ray(rotation: np.ndarray) -> np.ndarray:
+    """Return the pointing ray in screen coordinates."""
+    ray = rotation[:, 1].copy()  # Device/marker up is the pointing direction.
+    ray[0] *= SCREEN_X_SIGN
+    return ray
+
+
+def intersect_screen_ray(
+    position_mm: np.ndarray, ray: np.ndarray, display: Display
 ):
-    ray = rotation[:, 1]  # Device/marker up is the pointing direction.
     if abs(ray[2]) < 1e-4:
         return None, ray, None
     distance = (0.0 - position_mm[2]) / ray[2]
@@ -467,6 +480,60 @@ def intersect_screen(
     target[0] = np.clip(target[0], display.origin_x, display.origin_x + display.width_px - 1)
     target[1] = np.clip(target[1], display.origin_y, display.origin_y + display.height_px - 1)
     return target, ray, hit_mm
+
+
+def intersect_screen(
+    position_mm: np.ndarray, rotation: np.ndarray, display: Display
+):
+    return intersect_screen_ray(position_mm, screen_pointing_ray(rotation), display)
+
+
+class RollingRestDetector:
+    """Classify rest from bias-independent raw IMU variation."""
+
+    def __init__(self):
+        self.samples = deque()
+        self.gyro_mean = None
+        self.gyro_deviation_dps = math.inf
+        self.accel_deviation_g = math.inf
+
+    def reset(self):
+        self.samples.clear()
+        self.gyro_mean = None
+        self.gyro_deviation_dps = math.inf
+        self.accel_deviation_g = math.inf
+
+    def update(self, t_us: int, gyro: np.ndarray, accel: np.ndarray) -> bool:
+        if self.samples and t_us <= self.samples[-1][0]:
+            self.reset()
+        self.samples.append((t_us, gyro.copy(), accel.copy()))
+        while (
+            self.samples
+            and t_us - self.samples[0][0] > REST_WINDOW_SECONDS * 1e6
+        ):
+            self.samples.popleft()
+
+        gyro_values = np.asarray([sample[1] for sample in self.samples])
+        accel_values = np.asarray([sample[2] for sample in self.samples])
+        self.gyro_mean = np.mean(gyro_values, axis=0)
+        gyro_delta = gyro_values - self.gyro_mean
+        accel_delta = accel_values - np.mean(accel_values, axis=0)
+        self.gyro_deviation_dps = float(
+            np.sqrt(np.mean(np.sum(gyro_delta**2, axis=1)))
+        )
+        self.accel_deviation_g = float(
+            np.sqrt(np.mean(np.sum(accel_delta**2, axis=1)))
+        )
+        window_span = t_us - self.samples[0][0]
+        window_ready = (
+            window_span
+            >= REST_WINDOW_SECONDS * REST_WINDOW_MIN_SPAN_FRACTION * 1e6
+        )
+        return (
+            window_ready
+            and self.gyro_deviation_dps < REST_GYRO_STD_DPS
+            and self.accel_deviation_g < REST_ACCEL_STD_G
+        )
 
 
 class OneEuroFilter:
@@ -666,6 +733,7 @@ def track(
     clip_times = deque()
     cursor_filter = OneEuroFilter()
     cursor = FractionalCursor(warp)
+    rest_detector = RollingRestDetector()
     # Translation is not tracked after calibration; retaining the webcam-height
     # y origin makes a level post-flip ray target the top edge forever.
     ray_origin_mm = calibration.position_mm.copy()
@@ -678,7 +746,6 @@ def track(
     rest_elapsed = 0.0
     integrated_yaw = 0.0
     rest_start_us = None
-    rest_bias_samples = deque()
     last_bias_update_us = None
     bias_update_printed = False
     drift = 0.0
@@ -726,6 +793,7 @@ def track(
         if line is SERIAL_RECONNECT:
             cursor_filter.reset()
             cursor.reset()
+            rest_detector.reset()
             displayed_target = None
             continue
         parsed = parse_line(line)
@@ -834,23 +902,25 @@ def track(
         dt = (t_us - last_t_us) / 1e6
         last_t_us = t_us
         if dt <= 0 or dt > 0.1:
+            rest_detector.reset()
             continue
         ahrs.set_sample_period(dt)
         corrected_gyro = gyro - bias
         ahrs.update_no_magnetometer(corrected_gyro, accel)
         base_rotation = alignment @ imufusion.quaternion_to_matrix(ahrs.get_quaternion())
-        rotation = pointing_reference @ base_rotation
+        base_ray = screen_pointing_ray(base_rotation)
+        ray = pointing_reference @ base_ray
         if recenter_requested:
             center_direction = -ray_origin_mm / np.linalg.norm(ray_origin_mm)
-            correction = shortest_arc_rotation(rotation[:, 1], center_direction)
+            correction = shortest_arc_rotation(ray, center_direction)
             pointing_reference = correction @ pointing_reference
-            rotation = pointing_reference @ base_rotation
+            ray = pointing_reference @ base_ray
             recenter_requested = False
             recenter_count += 1
             cursor_filter.reset()
             cursor.reset()
             print(f"# !!! RECENTERED !!! recenters={recenter_count}", flush=True)
-        target, ray, raw_hit_mm = intersect_screen(ray_origin_mm, rotation, display)
+        target, ray, raw_hit_mm = intersect_screen_ray(ray_origin_mm, ray, display)
         if target is not None:
             filtered_target = cursor_filter.filter(target, t_us / 1e6)
             displayed_target = cursor.move(filtered_target)
@@ -861,21 +931,12 @@ def track(
             cursor.reset()
             displayed_target = None
 
-        rest = (
-            np.linalg.norm(corrected_gyro) < REST_GYRO_DPS
-            and abs(np.linalg.norm(accel) - 1.0) < REST_ACCEL_G_TOLERANCE
-        )
+        rest = rest_detector.update(t_us, gyro, accel)
         if rest:
             if rest_start_us is None:
                 rest_start_us = t_us
                 last_bias_update_us = None
                 bias_update_printed = False
-            rest_bias_samples.append((t_us, gyro.copy()))
-            while (
-                rest_bias_samples
-                and t_us - rest_bias_samples[0][0] > REST_BIAS_UPDATE_SECONDS * 1e6
-            ):
-                rest_bias_samples.popleft()
             if (
                 t_us - rest_start_us >= REST_BIAS_DELAY_SECONDS * 1e6
                 and (
@@ -883,7 +944,7 @@ def track(
                     or t_us - last_bias_update_us >= REST_BIAS_UPDATE_SECONDS * 1e6
                 )
             ):
-                rest_mean = np.mean([sample for _, sample in rest_bias_samples], axis=0)
+                rest_mean = rest_detector.gyro_mean
                 bias = (1.0 - REST_BIAS_LEAK) * bias + REST_BIAS_LEAK * rest_mean
                 last_bias_update_us = t_us
                 if not bias_update_printed:
@@ -903,7 +964,6 @@ def track(
                 drift = float(np.polyfit(times - times[0], angles, 1)[0] * 60)
         else:
             rest_start_us = None
-            rest_bias_samples.clear()
             last_bias_update_us = None
             bias_update_printed = False
 

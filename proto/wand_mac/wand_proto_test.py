@@ -188,9 +188,9 @@ class RecenterTests(unittest.TestCase):
         )
         motion_deg = 5.0
 
-        # Positive screen-y angular velocity is physical yaw right. Negative
-        # screen-x angular velocity pitches the ray up. Convert each physical
-        # angular velocity into the raw body-frame gyro signal.
+        # Positive screen-y angular velocity was observed as physical yaw left
+        # in hardware round 7. Negative screen-x angular velocity pitches the
+        # ray up. Convert each physical velocity into raw body-frame gyro.
         yaw_body_gyro = centered.T @ np.array([0.0, motion_deg, 0.0])
         pitch_body_gyro = centered.T @ np.array([-motion_deg, 0.0, 0.0])
         yaw_rotation = centered @ rotation_vector(np.radians(yaw_body_gyro))
@@ -202,10 +202,97 @@ class RecenterTests(unittest.TestCase):
             CALIBRATION.position_mm, pitch_rotation, DISPLAY
         )
 
-        self.assertGreater(yaw_target[0] - DISPLAY.center_px[0], 0.0)
+        self.assertLess(yaw_target[0] - DISPLAY.center_px[0], 0.0)
         self.assertAlmostEqual(yaw_target[1], DISPLAY.center_px[1], places=9)
         self.assertAlmostEqual(pitch_target[0], DISPLAY.center_px[0], places=9)
         self.assertLess(pitch_target[1] - DISPLAY.center_px[1], 0.0)
+
+    def test_physical_left_positive_body_z_rotation_moves_cursor_left(self):
+        # Body +y points at the screen and gravity is on body -z, matching the
+        # annotated hardware finding. Positive body +z rotation is leftward.
+        centered = np.array(
+            [[-1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]]
+        )
+        physical_left = centered.copy()
+        for _ in range(10):
+            physical_left = physical_left @ rotation_z(math.radians(0.5))
+
+        target, _, _ = wand_proto.intersect_screen(
+            CALIBRATION.position_mm, physical_left, DISPLAY
+        )
+
+        self.assertLess(target[0] - DISPLAY.center_px[0], 0.0)
+        self.assertAlmostEqual(target[1], DISPLAY.center_px[1], places=9)
+
+
+class RestDetectorTests(unittest.TestCase):
+    def test_stale_bias_does_not_prevent_rest_detection_or_window_mean(self):
+        detector = wand_proto.RollingRestDetector()
+        stale_raw_mean = np.array([5.5, -3.25, 2.0])
+        rest = False
+        for index in range(RATE_HZ):
+            phase = 2.0 * math.pi * index / 17.0
+            gyro = stale_raw_mean + 0.1 * np.array(
+                [math.sin(phase), math.cos(phase), math.sin(2.0 * phase)]
+            )
+            accel = STATIONARY_ACCEL + 0.001 * np.array(
+                [math.cos(phase), math.sin(phase), math.cos(2.0 * phase)]
+            )
+            rest = detector.update(round(index * 1e6 / RATE_HZ), gyro, accel)
+
+        self.assertTrue(rest)
+        np.testing.assert_allclose(detector.gyro_mean, stale_raw_mean, atol=0.01)
+        self.assertLess(
+            detector.gyro_deviation_dps, wand_proto.REST_GYRO_STD_DPS
+        )
+        self.assertLess(
+            detector.accel_deviation_g, wand_proto.REST_ACCEL_STD_G
+        )
+
+    def test_raw_gyro_variance_marks_motion_independent_of_bias(self):
+        detector = wand_proto.RollingRestDetector()
+        rest = False
+        for index in range(RATE_HZ):
+            gyro = np.array([5.5, -3.25, 2.0 + 4.0 * (-1) ** index])
+            rest = detector.update(
+                round(index * 1e6 / RATE_HZ), gyro, STATIONARY_ACCEL
+            )
+
+        self.assertFalse(rest)
+        self.assertGreater(
+            detector.gyro_deviation_dps, wand_proto.REST_GYRO_STD_DPS
+        )
+
+    def test_accel_variance_marks_motion_when_gyro_is_quiet(self):
+        detector = wand_proto.RollingRestDetector()
+        rest = False
+        for index in range(RATE_HZ):
+            accel = STATIONARY_ACCEL + np.array(
+                [0.05 * (-1) ** index, 0.0, 0.0]
+            )
+            rest = detector.update(
+                round(index * 1e6 / RATE_HZ), np.array([5.5, -3.25, 2.0]), accel
+            )
+
+        self.assertFalse(rest)
+        self.assertGreater(
+            detector.accel_deviation_g, wand_proto.REST_ACCEL_STD_G
+        )
+
+    def test_tracking_relearns_a_stale_bias_from_rest_window(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            wand_proto.track(
+                replay(np.array([5.5, -3.25, 2.0]), duration=4.0),
+                CALIBRATION,
+                DISPLAY,
+                warp=False,
+                debug=False,
+                initial_bias=np.zeros(3),
+                mount_roll_deg=0.0,
+            )
+
+        self.assertIn("# bias updated", output.getvalue())
 
 
 class GravityCorrectionTests(unittest.TestCase):
