@@ -117,6 +117,15 @@ granola_esp32_hackathon/
     └── echo/echo_ranger.{h,cpp}      # ★ stretch
 ```
 
+## SCOPE CUT (decision 2026-08-30, late): audio + camera dropped
+
+Time-boxed descope. DROPPED: (1) TABLE-ACOUSTIC / all audio experiments —
+transport code stays committed as archive, no further work; (2) webcam ArUco
+calibration — AIR mode is "recentered inertial pointing": desk bias → flip →
+full recenter (r / touch), assumed distance + user sensitivity instead of
+solvePnP. Remaining scope: BLE HID mouse slice, AIR mode (no camera),
+TABLE-IMU (guided capture, stroke-based).
+
 ## TABLE mode: two independent implementations (decision 2026-08-30)
 
 Table tracking ships as two side-by-side modes — neither replaces the other:
