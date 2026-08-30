@@ -640,6 +640,8 @@ def track(
 
 
 def main():
+    # Line-buffer stdout so output appears live even when piped through tee.
+    sys.stdout.reconfigure(line_buffering=True)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", default=DEFAULT_PORT)
     parser.add_argument("--baud", type=int, default=921600)
