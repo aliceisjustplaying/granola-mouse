@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "proto_marker.h"
@@ -47,6 +48,7 @@
 #define GYRO_RANGE_DPS 2048
 #define ACCEL_RANGE_G 8
 #define IMU_ODR_HZ 250
+#define IMU_PENDING_CAPACITY 32
 
 static const co5300_lcd_init_cmd_t panel_init_commands[] = {
     {0xFE, (uint8_t[]){0x00}, 1, 0},
@@ -66,6 +68,12 @@ static DMA_ATTR uint16_t display_strip[PANEL_WIDTH * STRIP_ROWS];
 static SemaphoreHandle_t display_transfer_done;
 static qmi8658_dev_t imu;
 static SemaphoreHandle_t serial_output_mutex;
+static QueueHandle_t pending_imu;
+
+typedef struct {
+    int64_t timestamp_us;
+    qmi8658_data_t data;
+} pending_imu_sample_t;
 
 static void check(esp_err_t error, const char *operation)
 {
@@ -262,6 +270,26 @@ static void print_config(void)
     xSemaphoreGive(serial_output_mutex);
 }
 
+static void imu_sample_task(void *context)
+{
+    (void)context;
+    for (;;) {
+        bool ready = false;
+        if (qmi8658_is_data_ready(&imu, &ready) == ESP_OK && ready) {
+            pending_imu_sample_t sample;
+            if (qmi8658_read_sensor_data(&imu, &sample.data) == ESP_OK) {
+                sample.timestamp_us = esp_timer_get_time();
+                if (xQueueSend(pending_imu, &sample, 0) != pdTRUE) {
+                    pending_imu_sample_t discarded;
+                    (void)xQueueReceive(pending_imu, &discarded, 0);
+                    (void)xQueueSend(pending_imu, &sample, 0);
+                }
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+}
+
 void app_main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -276,24 +304,30 @@ void app_main(void)
     init_display(bus);
     init_imu(bus);
     print_config();
+
+    pending_imu = xQueueCreate(IMU_PENDING_CAPACITY, sizeof(pending_imu_sample_t));
+    if (pending_imu == NULL ||
+        xTaskCreate(imu_sample_task, "imu_sample", 4096, NULL, 2, NULL) != pdPASS) {
+        printf("# FATAL start IMU sampling task\n");
+        abort();
+    }
 #ifdef GRANOLA_PROTO_AUDIO
     check(audio_stream_start(bus, serial_output_mutex), "start audio stream");
 #endif
 
     int64_t last_config_us = esp_timer_get_time();
     for (;;) {
-        bool ready = false;
-        if (qmi8658_is_data_ready(&imu, &ready) == ESP_OK && ready) {
-            qmi8658_data_t data;
-            if (qmi8658_read_sensor_data(&imu, &data) == ESP_OK) {
-                const int64_t sample_us = esp_timer_get_time();
-                xSemaphoreTake(serial_output_mutex, portMAX_DELAY);
+        pending_imu_sample_t sample;
+        if (xQueuePeek(pending_imu, &sample, 0) == pdTRUE &&
+            xSemaphoreTake(serial_output_mutex, 0) == pdTRUE) {
+            if (xQueueReceive(pending_imu, &sample, 0) == pdTRUE) {
+                const qmi8658_data_t *data = &sample.data;
                 printf("IMU,%" PRId64 ",%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
-                       sample_us, data.gyroX, data.gyroY, data.gyroZ,
-                       data.accelX / 1000.0f, data.accelY / 1000.0f,
-                       data.accelZ / 1000.0f);
-                xSemaphoreGive(serial_output_mutex);
+                       sample.timestamp_us, data->gyroX, data->gyroY, data->gyroZ,
+                       data->accelX / 1000.0f, data->accelY / 1000.0f,
+                       data->accelZ / 1000.0f);
             }
+            xSemaphoreGive(serial_output_mutex);
         }
 
         const int64_t now_us = esp_timer_get_time();
@@ -301,6 +335,10 @@ void app_main(void)
             print_config();
             last_config_us = now_us;
         }
-        vTaskDelay(pdMS_TO_TICKS(1));
+        if (uxQueueMessagesWaiting(pending_imu) == 0) {
+            vTaskDelay(pdMS_TO_TICKS(1));
+        } else {
+            taskYIELD();
+        }
     }
 }

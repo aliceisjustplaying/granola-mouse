@@ -32,7 +32,8 @@
 #define AUDIO_CHUNK_MS 20
 #define AUDIO_CHUNK_SAMPLES ((AUDIO_SAMPLE_RATE_HZ * AUDIO_CHUNK_MS) / 1000)
 #define AUDIO_CHUNK_BYTES (AUDIO_CHUNK_SAMPLES * sizeof(int16_t))
-#define AUDIO_INPUT_GAIN_DB 30.0f
+#define AUDIO_SERIAL_WRITE_BYTES 128
+#define AUDIO_INPUT_GAIN_DB 0.0f
 
 /* Waveshare ESP32-S3-Touch-AMOLED-1.8 BSP v2.0.3 board definitions. */
 #define AUDIO_I2S_BCLK GPIO_NUM_9
@@ -40,6 +41,7 @@
 #define AUDIO_I2S_WS GPIO_NUM_45
 #define AUDIO_I2S_DOUT GPIO_NUM_8
 #define AUDIO_I2S_DIN GPIO_NUM_10
+#define AUDIO_I2S_PORT I2S_NUM_1
 #define AUDIO_PA_ENABLE GPIO_NUM_46
 
 static esp_codec_dev_handle_t microphone;
@@ -68,7 +70,20 @@ static void audio_stream_task(void *context)
         const int64_t timestamp_us = esp_timer_get_time();
         xSemaphoreTake(output_mutex, portMAX_DELAY);
         printf("AUD,%" PRId64 ",%u\n", timestamp_us, (unsigned)sizeof(pcm));
-        const size_t written = fwrite(pcm, 1, sizeof(pcm), stdout);
+        size_t written = 0;
+        while (written < sizeof(pcm)) {
+            const size_t remaining = sizeof(pcm) - written;
+            const size_t block = remaining < AUDIO_SERIAL_WRITE_BYTES
+                                     ? remaining
+                                     : AUDIO_SERIAL_WRITE_BYTES;
+            const size_t result =
+                fwrite((const uint8_t *)pcm + written, 1, block, stdout);
+            written += result;
+            if (result != block) {
+                break;
+            }
+            taskYIELD();
+        }
         xSemaphoreGive(output_mutex);
 
         if (written != sizeof(pcm)) {
@@ -88,7 +103,7 @@ esp_err_t audio_stream_start(i2c_master_bus_handle_t i2c_bus,
     i2s_chan_handle_t tx_channel = NULL;
     i2s_chan_handle_t rx_channel = NULL;
     i2s_chan_config_t channel_config =
-        I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+        I2S_CHANNEL_DEFAULT_CONFIG(AUDIO_I2S_PORT, I2S_ROLE_MASTER);
     channel_config.auto_clear = true;
     esp_err_t error = i2s_new_channel(&channel_config, &tx_channel, &rx_channel);
     if (error != ESP_OK) {
@@ -122,7 +137,7 @@ esp_err_t audio_stream_start(i2c_master_bus_handle_t i2c_bus,
     }
 
     audio_codec_i2s_cfg_t codec_i2s_config = {
-        .port = I2S_NUM_0,
+        .port = AUDIO_I2S_PORT,
         .tx_handle = tx_channel,
         .rx_handle = rx_channel,
     };
@@ -154,7 +169,7 @@ esp_err_t audio_stream_start(i2c_master_bus_handle_t i2c_bus,
     es8311_codec_cfg_t es8311_config = {
         .ctrl_if = control_interface,
         .gpio_if = gpio_interface,
-        .codec_mode = ESP_CODEC_DEV_WORK_MODE_ADC,
+        .codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH,
         .pa_pin = AUDIO_PA_ENABLE,
         .pa_reverted = false,
         .master_mode = false,
