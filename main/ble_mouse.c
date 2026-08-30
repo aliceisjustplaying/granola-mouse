@@ -1,6 +1,7 @@
 #include "ble_mouse.h"
 
 #include <stdbool.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -19,6 +20,7 @@
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "nvs_flash.h"
+#include "services/gap/ble_svc_gap.h"
 
 /* Air-mouse tuning. Axis signs are initial guesses and intentionally easy to flip. */
 #define BLE_MOUSE_X_SIGN (-1.0f) /* dx from gyro Z */
@@ -100,6 +102,21 @@ static void state_print(const char *message)
     }
 }
 
+static void state_printf(const char *format, ...)
+{
+    if (output_mutex != NULL) {
+        xSemaphoreTake(output_mutex, portMAX_DELAY);
+    }
+    va_list arguments;
+    va_start(arguments, format);
+    vprintf(format, arguments);
+    va_end(arguments);
+    putchar('\n');
+    if (output_mutex != NULL) {
+        xSemaphoreGive(output_mutex);
+    }
+}
+
 static void start_advertising(void);
 
 static int gap_event(struct ble_gap_event *event, void *context)
@@ -111,6 +128,12 @@ static int gap_event(struct ble_gap_event *event, void *context)
         if (event->connect.status != 0) {
             connected = false;
             start_advertising();
+        } else {
+            state_print("# BLE pairing initiated");
+            const int rc = ble_gap_security_initiate(event->connect.conn_handle);
+            if (rc != 0) {
+                state_printf("# BLE pairing initiation failed status=%d", rc);
+            }
         }
         break;
     case BLE_GAP_EVENT_DISCONNECT:
@@ -122,6 +145,7 @@ static int gap_event(struct ble_gap_event *event, void *context)
         }
         break;
     case BLE_GAP_EVENT_ENC_CHANGE:
+        state_printf("# BLE encryption change status=%d", event->enc_change.status);
         if (event->enc_change.status == 0) {
             struct ble_gap_conn_desc description;
             if (ble_gap_conn_find(event->enc_change.conn_handle, &description) == 0 &&
@@ -130,10 +154,28 @@ static int gap_event(struct ble_gap_event *event, void *context)
             }
         }
         break;
+    case BLE_GAP_EVENT_PARING_COMPLETE: {
+        struct ble_gap_conn_desc description;
+        const bool bonded =
+            ble_gap_conn_find(event->pairing_complete.conn_handle, &description) == 0 &&
+            description.sec_state.bonded;
+        state_printf("# BLE auth complete status=%d bonded=%d",
+                     event->pairing_complete.status, bonded);
+        break;
+    }
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        state_printf("# BLE subscribe handle=%d", event->subscribe.attr_handle);
+        break;
     case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        state_print("# BLE repeat pairing");
         struct ble_gap_conn_desc description;
         if (ble_gap_conn_find(event->repeat_pairing.conn_handle, &description) == 0) {
-            ble_store_util_delete_peer(&description.peer_id_addr);
+            const int rc = ble_store_util_delete_peer(&description.peer_id_addr);
+            if (rc != 0) {
+                state_printf("# BLE bond delete failed status=%d", rc);
+            }
+        } else {
+            state_print("# BLE bond lookup failed");
         }
         return BLE_GAP_REPEAT_PAIRING_RETRY;
     }
@@ -303,6 +345,12 @@ void ble_mouse_start(SemaphoreHandle_t serial_mutex)
 
     ESP_ERROR_CHECK(esp_hidd_dev_init(&hid_config, ESP_HID_TRANSPORT_BLE, hid_event,
                                       &hid_device));
+    ESP_ERROR_CHECK(ble_svc_gap_device_name_set(BLE_MOUSE_DEVICE_NAME) == 0
+                        ? ESP_OK
+                        : ESP_FAIL);
+    ESP_ERROR_CHECK(ble_svc_gap_device_appearance_set(HID_MOUSE_APPEARANCE) == 0
+                        ? ESP_OK
+                        : ESP_FAIL);
     ble_store_config_init();
     ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
     nimble_port_freertos_init(host_task);
