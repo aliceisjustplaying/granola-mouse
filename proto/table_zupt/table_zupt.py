@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -328,6 +329,8 @@ def verify() -> None:
 
 
 def main() -> None:
+    # Line-buffer stdout so output appears live even when piped through tee.
+    sys.stdout.reconfigure(line_buffering=True)
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--analyze", metavar="FILE", type=Path)
