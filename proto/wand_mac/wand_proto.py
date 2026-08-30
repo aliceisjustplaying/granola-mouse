@@ -14,6 +14,8 @@
 Default: desk bias, flip flat, aim at screen center, press r, then point.
 Use ``--distance-mm MM`` for assumed device distance and ``--sens FACTOR`` for cursor gain.
 Use ``--camera`` only to run the legacy webcam ArUco calibration diagnostic.
+Mount roll defaults to 0 degrees without a camera and -90 degrees with one;
+``--mount-roll DEG`` overrides either default.
 """
 
 import argparse
@@ -46,8 +48,9 @@ HORIZONTAL_FOV_DEG = 65.0
 CAMERA_Y_OFFSET_MM = 0.0  # Camera above the physical display edge, if applicable.
 AXIS_REMAP = np.eye(3)  # Unknown board mounting; determine with --probe.
 # The on-device marker is rendered about 90 degrees from its assumed orientation,
-# baking roll into calibration. Hardware testing found +90 inverts left/right.
-MOUNT_ROLL_DEG = -90.0
+# baking roll into webcam calibration. Assumed calibration has no marker roll.
+ASSUMED_MOUNT_ROLL_DEG = 0.0
+CAMERA_MOUNT_ROLL_DEG = -90.0
 # Hardware round 7: body +z physical-left yaw otherwise moved screen x right.
 # Apply this once when converting the tracked pointing ray to screen coordinates.
 SCREEN_X_SIGN = -1.0
@@ -268,6 +271,12 @@ def select_calibration(
     if use_camera:
         return camera_calibration(fov_deg, display)
     return assumed_calibration(distance_mm)
+
+
+def select_mount_roll(use_camera: bool, override_deg: float | None) -> float:
+    if override_deg is not None:
+        return override_deg
+    return CAMERA_MOUNT_ROLL_DEG if use_camera else ASSUMED_MOUNT_ROLL_DEG
 
 
 def camera_calibration(fov_deg: float, display: Display) -> Calibration:
@@ -727,7 +736,7 @@ def make_ahrs():
 
 def track(
     lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
-    initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG, guided=False,
+    initial_bias=None, mount_roll_deg=ASSUMED_MOUNT_ROLL_DEG, guided=False,
     recording=None, voice=True, sensitivity=1.0,
 ):
     ahrs = make_ahrs()
@@ -1076,8 +1085,13 @@ def main():
     )
     parser.add_argument("--fov", type=float, default=HORIZONTAL_FOV_DEG,
                         help="approximate webcam horizontal FOV in degrees")
-    parser.add_argument("--mount-roll", type=float, default=MOUNT_ROLL_DEG, metavar="DEG",
-                        help="fixed calibration roll around the pointing axis")
+    parser.add_argument(
+        "--mount-roll", type=float, default=None, metavar="DEG",
+        help=(
+            "fixed calibration roll around the pointing axis "
+            "(default: 0; -90 with --camera)"
+        ),
+    )
     args = parser.parse_args()
     if args.record is not None and args.replay is not None and not args.guided:
         parser.error("--record is only available during live tracking")
@@ -1121,13 +1135,14 @@ def main():
     if np.any(desk_std > 1.0):
         print("WARNING gyro std > 1 dps: device was moving during desk bias")
 
+    use_camera = args.camera and not args.fake_calib
     calibration = select_calibration(
-        args.camera and not args.fake_calib,
+        use_camera,
         args.fov,
         display,
         args.distance_mm,
     )
-    if not (args.camera and not args.fake_calib):
+    if not use_camera:
         q = matrix_to_quaternion(calibration.rotation)
         print(
             "CALIBRATION assumed"
@@ -1140,7 +1155,7 @@ def main():
         warp=args.warp or args.replay is None,
         debug=args.debug,
         initial_bias=desk_bias,
-        mount_roll_deg=args.mount_roll,
+        mount_roll_deg=select_mount_roll(use_camera, args.mount_roll),
         guided=args.guided,
         voice=args.voice and args.replay is None,
         sensitivity=args.sens,

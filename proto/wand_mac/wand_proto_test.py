@@ -75,7 +75,7 @@ def rotation_vector(vector):
 
 def offset_pointing_rotation(azimuth_deg, elevation_deg):
     centered = SCREEN_FROM_FLAT_BODY @ wand_proto.pointing_axis_roll(
-        math.radians(wand_proto.MOUNT_ROLL_DEG)
+        math.radians(wand_proto.CAMERA_MOUNT_ROLL_DEG)
     )
     return (
         wand_proto.yaw_rotation(math.radians(azimuth_deg))
@@ -126,6 +126,12 @@ class CalibrationAndSensitivityTests(unittest.TestCase):
         np.testing.assert_array_equal(
             calibration.position_mm, np.array([0.0, 0.0, -725.0])
         )
+
+    def test_mount_roll_defaults_follow_calibration_flow_and_allow_override(self):
+        self.assertEqual(wand_proto.select_mount_roll(False, None), 0.0)
+        self.assertEqual(wand_proto.select_mount_roll(True, None), -90.0)
+        self.assertEqual(wand_proto.select_mount_roll(False, 17.5), 17.5)
+        self.assertEqual(wand_proto.select_mount_roll(True, 17.5), 17.5)
 
     def test_sensitivity_scales_cursor_displacement_about_center_exactly(self):
         raw_target = np.array([1170.25, 413.5])
@@ -208,8 +214,36 @@ class RecenterTests(unittest.TestCase):
                 centered_rotation[:, 1], center_direction, atol=2e-12
             )
 
+    def test_default_flow_physical_pitch_gain_after_recenter(self):
+        calibration = wand_proto.assumed_calibration(500.0)
+        # Body gravity is -z while NWU earth-up is +z.
+        flat_body_to_earth = rotation_x(math.pi)
+        mount_correction = wand_proto.pointing_axis_roll(
+            math.radians(wand_proto.select_mount_roll(False, None))
+        )
+        alignment = wand_proto.aligned_screen_transform(
+            calibration.rotation, mount_correction, flat_body_to_earth
+        )
+        centered = alignment @ flat_body_to_earth
+        center_direction = np.array([0.0, 0.0, 1.0])
+        recenter = wand_proto.shortest_arc_rotation(
+            wand_proto.screen_pointing_ray(centered), center_direction
+        )
+        physical_pitch_deg = 10.0
+        pitched = alignment @ (
+            flat_body_to_earth @ rotation_x(math.radians(-physical_pitch_deg))
+        )
+        ray = recenter @ wand_proto.screen_pointing_ray(pitched)
+        azimuth_deg = math.degrees(math.atan2(ray[0], ray[2]))
+        elevation_deg = math.degrees(
+            math.atan2(ray[1], math.hypot(ray[0], ray[2]))
+        )
+
+        self.assertGreater(elevation_deg / physical_pitch_deg, 0.9)
+        self.assertAlmostEqual(azimuth_deg, 0.0, places=12)
+
     def test_minus_90_mount_roll_has_expected_motion_signs_after_recenter(self):
-        self.assertEqual(wand_proto.MOUNT_ROLL_DEG, -90.0)
+        self.assertEqual(wand_proto.CAMERA_MOUNT_ROLL_DEG, -90.0)
         rotation = offset_pointing_rotation(20.0, 25.0)
         center_direction = np.array([0.0, 0.0, 1.0])
         centered = (
