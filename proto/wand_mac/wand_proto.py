@@ -37,8 +37,17 @@ import serial
 from Quartz import (
     CGDisplayBounds,
     CGDisplayScreenSize,
+    CGEventCreate,
+    CGEventCreateMouseEvent,
+    CGEventGetLocation,
+    CGEventPost,
     CGMainDisplayID,
     CGWarpMouseCursorPosition,
+    kCGEventLeftMouseDown,
+    kCGEventLeftMouseDragged,
+    kCGEventLeftMouseUp,
+    kCGHIDEventTap,
+    kCGMouseButtonLeft,
 )
 
 # Verify with a ruler before trusting pose distance. Active ArUco symbol is
@@ -371,6 +380,14 @@ def parse_line(line: str):
             )
         except ValueError:
             return None
+    if line.startswith("BTN,"):
+        fields = line.split(",")
+        if len(fields) != 3 or fields[2] not in ("0", "1"):
+            return None
+        try:
+            return "BTN", int(fields[1]), fields[2] == "1"
+        except ValueError:
+            return None
     if line.startswith("CFG,"):
         values = {}
         try:
@@ -599,6 +616,41 @@ class OneEuroFilter:
         return filtered.copy()
 
 
+def current_cursor_position():
+    point = CGEventGetLocation(CGEventCreate(None))
+    return np.array([float(point.x), float(point.y)])
+
+
+def post_left_mouse_event(event_type, position):
+    event = CGEventCreateMouseEvent(
+        None, event_type, tuple(np.asarray(position, dtype=float)), kCGMouseButtonLeft
+    )
+    CGEventPost(kCGHIDEventTap, event)
+
+
+class WiredButton:
+    def __init__(self, post_events: bool):
+        self.post_events = post_events
+        self.held = False
+        self.clicks = 0
+
+    def update(self, pressed: bool, position=None):
+        if pressed == self.held:
+            return
+        if self.post_events:
+            if position is None:
+                position = current_cursor_position()
+            event_type = kCGEventLeftMouseDown if pressed else kCGEventLeftMouseUp
+            post_left_mouse_event(event_type, position)
+        self.held = pressed
+        if pressed:
+            self.clicks += 1
+
+    def release(self, position=None):
+        if self.held:
+            self.update(False, position)
+
+
 class FractionalCursor:
     def __init__(self, warp: bool):
         self.warp = warp
@@ -609,7 +661,7 @@ class FractionalCursor:
         self.integer = None
         self.carry = np.zeros(2)
 
-    def move(self, target: np.ndarray):
+    def move(self, target: np.ndarray, dragging=False):
         if self.continuous is None:
             self.continuous = target.copy()
             self.integer = np.rint(target).astype(int)
@@ -620,7 +672,10 @@ class FractionalCursor:
             self.integer += step
             self.continuous = target.copy()
         if self.warp:
-            CGWarpMouseCursorPosition(tuple(self.integer.astype(float)))
+            if dragging:
+                post_left_mouse_event(kCGEventLeftMouseDragged, self.integer)
+            else:
+                CGWarpMouseCursorPosition(tuple(self.integer.astype(float)))
         return self.integer.copy()
 
 
@@ -760,6 +815,7 @@ def track(
     clip_times = deque()
     cursor_filter = OneEuroFilter()
     cursor = FractionalCursor(warp)
+    button = WiredButton(post_events=warp)
     rest_detector = RollingRestDetector()
     # Translation is not tracked after calibration; retaining the webcam-height
     # y origin makes a level post-flip ray target the top edge forever.
@@ -818,6 +874,7 @@ def track(
         if steps is not None and key is not None:
             steps.advance_for_key(key, protocol_elapsed, final_sample_us)
         if line is SERIAL_RECONNECT:
+            button.release(displayed_target)
             cursor_filter.reset()
             cursor.reset()
             rest_detector.reset()
@@ -828,6 +885,9 @@ def track(
             continue
         if parsed[0] == "CFG":
             gyro_range = parsed[1].get("gyro_range_dps", gyro_range)
+            continue
+        if parsed[0] == "BTN":
+            button.update(parsed[2], displayed_target)
             continue
 
         _, t_us, gyro_raw, accel_raw = parsed
@@ -951,7 +1011,7 @@ def track(
         if target is not None:
             target = scale_target_about_center(target, display.center_px, sensitivity)
             filtered_target = cursor_filter.filter(target, t_us / 1e6)
-            displayed_target = cursor.move(filtered_target)
+            displayed_target = cursor.move(filtered_target, dragging=button.held)
             target_min = np.minimum(target_min, filtered_target)
             target_max = np.maximum(target_max, filtered_target)
         else:
@@ -1032,6 +1092,7 @@ def track(
             print(hud_text, flush=True)
             last_hud_us = t_us
 
+    button.release(displayed_target)
     if steps is not None:
         steps.finish(final_sample_us)
 
@@ -1043,13 +1104,17 @@ def track(
         )
         print(
             f"SUMMARY samples={sample_count} duration={duration:.3f}s"
-            f" peak_gyro={peak_gyro:.2f}dps clips={clip_count} recenters={recenter_count}"
-            f" drift={drift:+.3f}deg/min target_span_px={span_text}"
+            f" peak_gyro={peak_gyro:.2f}dps clips={clip_count} clicks={button.clicks}"
+            f" recenters={recenter_count} drift={drift:+.3f}deg/min"
+            f" target_span_px={span_text}"
         )
     elif bias_samples:
-        print("SUMMARY replay ended before bias calibration completed")
+        print(
+            "SUMMARY replay ended before bias calibration completed"
+            f" clicks={button.clicks}"
+        )
     else:
-        print("SUMMARY no IMU samples found")
+        print(f"SUMMARY no IMU samples found clicks={button.clicks}")
 
 
 def main():

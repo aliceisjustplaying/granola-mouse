@@ -113,6 +113,84 @@ def elevation_curve(lines):
     ]
 
 
+class WiredButtonTests(unittest.TestCase):
+    def test_btn_replay_parses_pairs_and_counts_one_click(self):
+        self.assertEqual(wand_proto.parse_line("BTN,123,1\n"), ("BTN", 123, True))
+        self.assertEqual(wand_proto.parse_line("BTN,456,0\n"), ("BTN", 456, False))
+        self.assertIsNone(wand_proto.parse_line("BTN,456,2\n"))
+        lines = [
+            "BTN,100,1\n",
+            "BTN,110,1\n",
+            "BTN,200,0\n",
+            "BTN,210,0\n",
+            "IMU,300,0,0,0,0,0,-1\n",
+        ]
+        posted = []
+        output = io.StringIO()
+        with (
+            mock.patch.object(
+                wand_proto,
+                "current_cursor_position",
+                return_value=np.array([40.0, 50.0]),
+            ),
+            mock.patch.object(
+                wand_proto,
+                "post_left_mouse_event",
+                side_effect=lambda event_type, position: posted.append(event_type),
+            ),
+            contextlib.redirect_stdout(output),
+        ):
+            wand_proto.track(
+                lines,
+                CALIBRATION,
+                DISPLAY,
+                warp=True,
+                debug=False,
+                initial_bias=np.zeros(3),
+                mount_roll_deg=0.0,
+            )
+
+        self.assertEqual(
+            posted,
+            [wand_proto.kCGEventLeftMouseDown, wand_proto.kCGEventLeftMouseUp],
+        )
+        self.assertIn("clicks=1", output.getvalue())
+
+    def test_cursor_moves_use_drag_events_while_button_is_held(self):
+        cursor = wand_proto.FractionalCursor(warp=True)
+        with (
+            mock.patch.object(wand_proto, "post_left_mouse_event") as post_event,
+            mock.patch.object(wand_proto, "CGWarpMouseCursorPosition") as warp_cursor,
+        ):
+            cursor.move(np.array([100.0, 200.0]), dragging=True)
+
+        post_event.assert_called_once()
+        self.assertEqual(
+            post_event.call_args.args[0], wand_proto.kCGEventLeftMouseDragged
+        )
+        warp_cursor.assert_not_called()
+
+    def test_replay_without_warp_never_posts_mouse_events(self):
+        lines = ["BTN,100,1\n", "BTN,200,0\n"]
+        output = io.StringIO()
+        with (
+            mock.patch.object(wand_proto, "post_left_mouse_event") as post_event,
+            contextlib.redirect_stdout(output),
+        ):
+            wand_proto.track(
+                lines,
+                CALIBRATION,
+                DISPLAY,
+                warp=False,
+                debug=False,
+                initial_bias=np.zeros(3),
+                mount_roll_deg=0.0,
+            )
+
+        post_event.assert_not_called()
+        self.assertIn("clicks=1", output.getvalue())
+
+
 class CalibrationAndSensitivityTests(unittest.TestCase):
     def test_default_calibration_uses_assumed_pose_without_camera_api(self):
         with mock.patch.object(

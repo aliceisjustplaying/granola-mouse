@@ -53,6 +53,8 @@
 #define ACCEL_RANGE_G 8
 #define IMU_ODR_HZ 250
 #define IMU_PENDING_CAPACITY 32
+#define BOOT_BUTTON_GPIO GPIO_NUM_0
+#define BUTTON_DEBOUNCE_US 20000
 
 static const co5300_lcd_init_cmd_t panel_init_commands[] = {
     {0xFE, (uint8_t[]){0x00}, 1, 0},
@@ -390,6 +392,19 @@ static void init_imu(i2c_master_bus_handle_t bus)
     printf("# IMU ready: QMI8658 at 0x%02X\n", address);
 }
 
+static bool init_boot_button(void)
+{
+    const gpio_config_t config = {
+        .pin_bit_mask = 1ULL << BOOT_BUTTON_GPIO,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    check(gpio_config(&config), "configure BOOT button");
+    return gpio_get_level(BOOT_BUTTON_GPIO) == 0;
+}
+
 static void print_config(void)
 {
     xSemaphoreTake(serial_output_mutex, portMAX_DELAY);
@@ -435,6 +450,10 @@ void app_main(void)
         abort();
     }
 
+    bool button_state = init_boot_button();
+    bool button_candidate = button_state;
+    int64_t button_candidate_since_us = esp_timer_get_time();
+
     i2c_master_bus_handle_t bus = init_i2c();
     init_display(bus);
     init_imu(bus);
@@ -471,6 +490,18 @@ void app_main(void)
         }
 
         const int64_t now_us = esp_timer_get_time();
+        const bool raw_button_state = gpio_get_level(BOOT_BUTTON_GPIO) == 0;
+        if (raw_button_state != button_candidate) {
+            button_candidate = raw_button_state;
+            button_candidate_since_us = now_us;
+        } else if (button_candidate != button_state &&
+                   now_us - button_candidate_since_us >= BUTTON_DEBOUNCE_US) {
+            button_state = button_candidate;
+            xSemaphoreTake(serial_output_mutex, portMAX_DELAY);
+            printf("BTN,%" PRId64 ",%d\n", now_us, button_state ? 1 : 0);
+            xSemaphoreGive(serial_output_mutex);
+        }
+
         if (now_us - last_config_us >= 5000000) {
             print_config();
             last_config_us = now_us;
