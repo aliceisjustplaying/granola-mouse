@@ -4,6 +4,10 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 action="${1:-build}"
 port="${2:-/dev/cu.usbmodem101}"
+# Accept a device label (A, B, ...) anywhere a port is expected.
+if [[ "$port" != /dev/* ]]; then
+  port="$("$root/scripts/device" port "$port")"
+fi
 
 if ! command -v eim >/dev/null 2>&1; then
   echo "eim is required" >&2

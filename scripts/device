@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Resolve labeled ESP32 devices (devices.conf: LABEL MAC) to current tty ports.
+# Ports change with USB topology; chip MACs never do.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+action="${1:-list}"
+
+resolve() {
+  python3 - "$root/devices.conf" "${1:-}" <<'EOF'
+import re, subprocess, sys
+
+conf, want = sys.argv[1], sys.argv[2]
+labels = {}
+for line in open(conf):
+    line = line.split("#")[0].strip()
+    if line:
+        label, serial = line.split()
+        labels[serial.upper()] = label
+
+out = subprocess.run(["ioreg", "-r", "-c", "IOSerialBSDClient", "-t", "-l", "-w0"],
+                     capture_output=True, text=True).stdout
+# Blocks appear serial-number-then-tty in tree order; correlate by proximity.
+found = []  # (serial, tty)
+serial = None
+for line in out.splitlines():
+    m = re.search(r'"USB Serial Number" = "([^"]+)"', line)
+    if m:
+        serial = m.group(1).upper()
+    m = re.search(r'"IOCalloutDevice" = "(/dev/cu\.usbmodem[^"]+)"', line)
+    if m and serial:
+        found.append((serial, m.group(1)))
+        serial = None
+
+if want:
+    for s, tty in found:
+        if labels.get(s) == want:
+            print(tty)
+            sys.exit(0)
+    print(f"device {want!r} not connected", file=sys.stderr)
+    sys.exit(1)
+else:
+    for s, tty in found:
+        print(f"{labels.get(s, '?'):3s} {s}  {tty}")
+    known = {s for s, _ in found}
+    for s, label in ((s, l) for s, l in labels.items() if s not in known):
+        print(f"{label:3s} {s}  (not connected)")
+EOF
+}
+
+case "$action" in
+  list) resolve ;;
+  port) resolve "${2:?usage: $0 port LABEL}" ;;
+  *) echo "usage: $0 {list|port LABEL}" >&2; exit 2 ;;
+esac
