@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+action="${1:-build}"
+port="${2:-/dev/cu.usbmodem101}"
+
+if ! command -v eim >/dev/null 2>&1; then
+  echo "eim is required" >&2
+  exit 1
+fi
+
+cd "$root"
+case "$action" in
+  build)
+    eim run "idf.py -B build build"
+    ;;
+  flash)
+    eim run "idf.py -B build -p '$port' flash"
+    ;;
+  monitor)
+    eim run "idf.py -B build -p '$port' monitor"
+    ;;
+  *)
+    echo "usage: $0 {build|flash [PORT]|monitor [PORT]}" >&2
+    exit 2
+    ;;
+esac
