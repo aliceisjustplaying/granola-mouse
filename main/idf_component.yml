@@ -1,4 +1,5 @@
 dependencies:
   idf: "6.0.2"
   espressif/esp_lcd_co5300: "^2.1.0"
+  espressif/esp_codec_dev: "1.6.2"
   waveshare/qmi8658: "^2.0.0"

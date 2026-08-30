@@ -19,6 +19,10 @@
 #include "proto_marker.h"
 #include "qmi8658.h"
 
+#ifdef GRANOLA_PROTO_AUDIO
+#include "audio_stream.h"
+#endif
+
 #define PANEL_WIDTH 368
 #define PANEL_HEIGHT 448
 #define PANEL_GAP_X 0x10
@@ -61,6 +65,7 @@ static const co5300_lcd_init_cmd_t panel_init_commands[] = {
 static DMA_ATTR uint16_t display_strip[PANEL_WIDTH * STRIP_ROWS];
 static SemaphoreHandle_t display_transfer_done;
 static qmi8658_dev_t imu;
+static SemaphoreHandle_t serial_output_mutex;
 
 static void check(esp_err_t error, const char *operation)
 {
@@ -251,19 +256,29 @@ static void init_imu(i2c_master_bus_handle_t bus)
 
 static void print_config(void)
 {
+    xSemaphoreTake(serial_output_mutex, portMAX_DELAY);
     printf("CFG,gyro_range_dps=%d,accel_range_g=%d,odr_hz=%d\n",
            GYRO_RANGE_DPS, ACCEL_RANGE_G, IMU_ODR_HZ);
+    xSemaphoreGive(serial_output_mutex);
 }
 
 void app_main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     esp_log_level_set("*", ESP_LOG_ERROR);
+    serial_output_mutex = xSemaphoreCreateMutex();
+    if (serial_output_mutex == NULL) {
+        printf("# FATAL create serial output mutex\n");
+        abort();
+    }
 
     i2c_master_bus_handle_t bus = init_i2c();
     init_display(bus);
     init_imu(bus);
     print_config();
+#ifdef GRANOLA_PROTO_AUDIO
+    check(audio_stream_start(bus, serial_output_mutex), "start audio stream");
+#endif
 
     int64_t last_config_us = esp_timer_get_time();
     for (;;) {
@@ -272,10 +287,12 @@ void app_main(void)
             qmi8658_data_t data;
             if (qmi8658_read_sensor_data(&imu, &data) == ESP_OK) {
                 const int64_t sample_us = esp_timer_get_time();
+                xSemaphoreTake(serial_output_mutex, portMAX_DELAY);
                 printf("IMU,%" PRId64 ",%.6f,%.6f,%.6f,%.6f,%.6f,%.6f\n",
                        sample_us, data.gyroX, data.gyroY, data.gyroZ,
                        data.accelX / 1000.0f, data.accelY / 1000.0f,
                        data.accelZ / 1000.0f);
+                xSemaphoreGive(serial_output_mutex);
             }
         }
 

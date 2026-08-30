@@ -71,6 +71,23 @@ overridable; good enough for a feel test.
   Mac script's replay mode (flip capture happens later, during integration).
 - Unknown serial lines must be skipped by the Mac parser (boot ROM noise).
 
+## Audio stream (GRANOLA_PROTO_AUDIO firmware variant)
+
+Built with `./scripts/build audio` (separate build-audio/ dir; default build
+is audio-free). When enabled, mic PCM is interleaved with IMU/CFG lines:
+
+```
+AUD,<t_us>,<n_bytes>\n
+<exactly n_bytes of raw PCM — no trailing delimiter>
+```
+
+- PCM: 48 kHz mono signed 16-bit little-endian; normal chunk 960 samples /
+  1,920 bytes / 20 ms. Host must consume exactly n_bytes before line parsing.
+- `t_us` = esp_timer time at chunk completion (NOT a synchronized sample
+  clock; derive intra-chunk times from the 48 kHz index).
+- ES8311 ADC-only @30 dB analog mic gain; PA (GPIO 46) stays off.
+- Full framing comment: `main/audio_stream.c:1-13`.
+
 ## Success criteria (record actual numbers in proto/VERDICT.md)
 
 1. Yaw drift at rest < ~2°/min after the script's software bias calibration.

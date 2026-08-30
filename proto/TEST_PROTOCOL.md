@@ -59,7 +59,40 @@ uv run proto/wand_mac/wand_proto.py --debug 2>&1 | tee proto/logs/air2.log
 - Answers to the NOTE questions in steps 4, 5, 6
 - One-line verdict: closer to "wand" or closer to "ouija board"?
 
+---
+
+# Round 4b — TABLE with measured ground truth
+
+Goal: settle whether the phase-1 changes help or hurt, using REAL distances.
+Setup: put two tape marks (or use mousepad edges) exactly **100 mm** apart —
+measure with a ruler, tell us the true number if it differs.
+
+### Record
+```sh
+uv run proto/table_zupt/table_zupt.py --capture proto/logs/table2.csv
+```
+Device flat, screen up, hand on it like a mouse. Sequence (rest ~2 s between
+every item, keep the device FLAT throughout):
+1. Still 3 s
+2. **Brisk** slide right mark-to-mark (~0.5 s), rest, brisk slide back —
+   repeat this out-and-back **3 times**
+3. **Medium** slide right over ~1.5 s, rest, back — once
+4. **Slow smooth drag** right over ~3 s, rest, back — once (this is the
+   vibration-gate stress test; expect it may fail — that's data)
+5. Circle ~100 mm across in ~2 s, then still 3 s
+6. Ctrl-C
+
+### Analyze
+```sh
+uv run proto/table_zupt/table_zupt.py --analyze proto/logs/table2.csv 2>&1 | tee proto/logs/table2_analysis.log
+uv run proto/table_zupt/table_zupt.py --cursor-sim proto/logs/table2.csv 2>&1 | tee proto/logs/table2_cursor_sim.log
+```
+
+### Report back
+- Both logs + both PNGs, and the true measured mark distance
+- Which slides felt identical to you (so we can compare their recovered
+  magnitudes for consistency)
+
 ## Not in this round
-- TABLE round 2 comes after the phase-1 improvements land (planar constraint,
-  vibration gating, cursor simulation).
-- Audio/acoustic experiments need a reflash — separate session.
+- Acoustic first-flash test: needs a reflash + the Mac-side tone/FFT tool
+  (in progress) — separate session with an audibility sweep.

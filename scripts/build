@@ -13,7 +13,10 @@ fi
 cd "$root"
 case "$action" in
   build)
-    eim run "idf.py -B build build"
+    eim run "idf.py -B build -DGRANOLA_PROTO_AUDIO=OFF build"
+    ;;
+  audio|build-audio)
+    eim run "idf.py -B build-audio -DGRANOLA_PROTO_AUDIO=ON build"
     ;;
   flash)
     eim run "idf.py -B build -p '$port' flash"
@@ -22,7 +25,7 @@ case "$action" in
     eim run "idf.py -B build -p '$port' monitor"
     ;;
   *)
-    echo "usage: $0 {build|flash [PORT]|monitor [PORT]}" >&2
+    echo "usage: $0 {build|audio|flash [PORT]|monitor [PORT]}" >&2
     exit 2
     ;;
 esac
