@@ -45,8 +45,8 @@ HORIZONTAL_FOV_DEG = 65.0
 CAMERA_Y_OFFSET_MM = 0.0  # Camera above the physical display edge, if applicable.
 AXIS_REMAP = np.eye(3)  # Unknown board mounting; determine with --probe.
 # The on-device marker is rendered about 90 degrees from its assumed orientation,
-# baking roll into calibration. Confirm this sign/value empirically on hardware.
-MOUNT_ROLL_DEG = 90.0
+# baking roll into calibration. Hardware testing found +90 inverts left/right.
+MOUNT_ROLL_DEG = -90.0
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
@@ -446,6 +446,36 @@ def pointing_axis_roll(angle: float):
     return yaw_rotation(angle)
 
 
+def shortest_arc_rotation(source: np.ndarray, target: np.ndarray):
+    """Return the minimal rotation that maps source onto target."""
+    source = np.asarray(source, dtype=float)
+    target = np.asarray(target, dtype=float)
+    source = source / np.linalg.norm(source)
+    target = target / np.linalg.norm(target)
+    cosine = float(np.clip(np.dot(source, target), -1.0, 1.0))
+    cross = np.cross(source, target)
+    sine = np.linalg.norm(cross)
+    if sine < 1e-12:
+        if cosine > 0.0:
+            return np.eye(3)
+        # Any axis perpendicular to source gives the same 180-degree mapping.
+        basis = np.zeros(3)
+        basis[int(np.argmin(np.abs(source)))] = 1.0
+        axis = np.cross(source, basis)
+        axis /= np.linalg.norm(axis)
+        return 2.0 * np.outer(axis, axis) - np.eye(3)
+    cross_matrix = np.array(
+        [
+            [0.0, -cross[2], cross[1]],
+            [cross[2], 0.0, -cross[0]],
+            [-cross[1], cross[0], 0.0],
+        ]
+    )
+    return np.eye(3) + cross_matrix + cross_matrix @ cross_matrix * (
+        (1.0 - cosine) / sine**2
+    )
+
+
 def gravity_aligned_screen_transform(screen_from_earth: np.ndarray):
     """Keep visual heading while mapping NWU earth-up to screen-up exactly."""
     screen_up = np.array([0.0, 1.0, 0.0])
@@ -532,7 +562,7 @@ def track(
     duration = 0.0
     target_min = np.array([math.inf, math.inf])
     target_max = np.array([-math.inf, -math.inf])
-    yaw_reference = np.eye(3)
+    pointing_reference = np.eye(3)
     recenter_requested = False
     recenter_count = 0
     mount_correction = pointing_axis_roll(math.radians(mount_roll_deg))
@@ -647,11 +677,12 @@ def track(
         corrected_gyro = gyro - bias
         ahrs.update_no_magnetometer(corrected_gyro, accel)
         base_rotation = alignment @ imufusion.quaternion_to_matrix(ahrs.get_quaternion())
-        rotation = yaw_reference @ base_rotation
+        rotation = pointing_reference @ base_rotation
         if recenter_requested:
-            azimuth = math.atan2(rotation[0, 1], rotation[2, 1])
-            yaw_reference = yaw_rotation(-azimuth) @ yaw_reference
-            rotation = yaw_reference @ base_rotation
+            center_direction = -ray_origin_mm / np.linalg.norm(ray_origin_mm)
+            correction = shortest_arc_rotation(rotation[:, 1], center_direction)
+            pointing_reference = correction @ pointing_reference
+            rotation = pointing_reference @ base_rotation
             recenter_requested = False
             recenter_count += 1
             cursor_filter.reset()

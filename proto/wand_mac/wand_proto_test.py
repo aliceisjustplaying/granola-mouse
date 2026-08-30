@@ -53,6 +53,36 @@ def rotation_z(angle):
     )
 
 
+def rotation_vector(vector):
+    angle = np.linalg.norm(vector)
+    if angle == 0.0:
+        return np.eye(3)
+    axis = vector / angle
+    cross_matrix = np.array(
+        [
+            [0.0, -axis[2], axis[1]],
+            [axis[2], 0.0, -axis[0]],
+            [-axis[1], axis[0], 0.0],
+        ]
+    )
+    return (
+        np.eye(3)
+        + math.sin(angle) * cross_matrix
+        + (1.0 - math.cos(angle)) * cross_matrix @ cross_matrix
+    )
+
+
+def offset_pointing_rotation(azimuth_deg, elevation_deg):
+    centered = SCREEN_FROM_FLAT_BODY @ wand_proto.pointing_axis_roll(
+        math.radians(wand_proto.MOUNT_ROLL_DEG)
+    )
+    return (
+        wand_proto.yaw_rotation(math.radians(azimuth_deg))
+        @ rotation_x(math.radians(-elevation_deg))
+        @ centered
+    )
+
+
 def replay(gyro, first_accel=None, duration=40.0):
     first_accel = STATIONARY_ACCEL if first_accel is None else first_accel
     for index in range(round(RATE_HZ * duration) + 1):
@@ -80,6 +110,73 @@ def elevation_curve(lines):
         float(match.group(1))
         for match in re.finditer(r"ray_az/el=[^/]+/([+-][0-9.]+)deg", output.getvalue())
     ]
+
+
+class RecenterTests(unittest.TestCase):
+    def test_full_recenter_maps_azimuth_and_elevation_offset_to_center(self):
+        rotation = offset_pointing_rotation(20.0, 25.0)
+        ray_origin = CALIBRATION.position_mm.copy()
+        ray_origin[1] = 0.0
+        center_direction = -ray_origin / np.linalg.norm(ray_origin)
+
+        correction = wand_proto.shortest_arc_rotation(
+            rotation[:, 1], center_direction
+        )
+        centered_rotation = correction @ rotation
+        target, ray, hit = wand_proto.intersect_screen(
+            ray_origin, centered_rotation, DISPLAY
+        )
+
+        np.testing.assert_allclose(ray, center_direction, atol=1e-12)
+        np.testing.assert_allclose(hit, np.zeros(3), atol=1e-12)
+        np.testing.assert_allclose(target, DISPLAY.center_px, atol=1e-12)
+
+    def test_repeated_recenter_composition_remains_exact(self):
+        ray_origin = CALIBRATION.position_mm.copy()
+        ray_origin[1] = 0.0
+        center_direction = -ray_origin / np.linalg.norm(ray_origin)
+        reference = np.eye(3)
+
+        for azimuth, elevation in [(20, 25), (-35, 12), (8, -30), (42, 18)] * 10:
+            base_rotation = offset_pointing_rotation(azimuth, elevation)
+            current_rotation = reference @ base_rotation
+            correction = wand_proto.shortest_arc_rotation(
+                current_rotation[:, 1], center_direction
+            )
+            reference = correction @ reference
+            centered_rotation = reference @ base_rotation
+            np.testing.assert_allclose(
+                centered_rotation[:, 1], center_direction, atol=2e-12
+            )
+
+    def test_minus_90_mount_roll_has_expected_motion_signs_after_recenter(self):
+        self.assertEqual(wand_proto.MOUNT_ROLL_DEG, -90.0)
+        rotation = offset_pointing_rotation(20.0, 25.0)
+        center_direction = np.array([0.0, 0.0, 1.0])
+        centered = (
+            wand_proto.shortest_arc_rotation(rotation[:, 1], center_direction)
+            @ rotation
+        )
+        motion_deg = 5.0
+
+        # Positive screen-y angular velocity is physical yaw right. Negative
+        # screen-x angular velocity pitches the ray up. Convert each physical
+        # angular velocity into the raw body-frame gyro signal.
+        yaw_body_gyro = centered.T @ np.array([0.0, motion_deg, 0.0])
+        pitch_body_gyro = centered.T @ np.array([-motion_deg, 0.0, 0.0])
+        yaw_rotation = centered @ rotation_vector(np.radians(yaw_body_gyro))
+        pitch_rotation = centered @ rotation_vector(np.radians(pitch_body_gyro))
+        yaw_target, _, _ = wand_proto.intersect_screen(
+            CALIBRATION.position_mm, yaw_rotation, DISPLAY
+        )
+        pitch_target, _, _ = wand_proto.intersect_screen(
+            CALIBRATION.position_mm, pitch_rotation, DISPLAY
+        )
+
+        self.assertGreater(yaw_target[0] - DISPLAY.center_px[0], 0.0)
+        self.assertAlmostEqual(yaw_target[1], DISPLAY.center_px[1], places=9)
+        self.assertAlmostEqual(pitch_target[0], DISPLAY.center_px[0], places=9)
+        self.assertLess(pitch_target[1] - DISPLAY.center_px[1], 0.0)
 
 
 class GravityCorrectionTests(unittest.TestCase):
