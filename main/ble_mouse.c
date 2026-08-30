@@ -128,12 +128,6 @@ static int gap_event(struct ble_gap_event *event, void *context)
         if (event->connect.status != 0) {
             connected = false;
             start_advertising();
-        } else {
-            state_print("# BLE pairing initiated");
-            const int rc = ble_gap_security_initiate(event->connect.conn_handle);
-            if (rc != 0) {
-                state_printf("# BLE pairing initiation failed status=%d", rc);
-            }
         }
         break;
     case BLE_GAP_EVENT_DISCONNECT:
@@ -145,7 +139,12 @@ static int gap_event(struct ble_gap_event *event, void *context)
         }
         break;
     case BLE_GAP_EVENT_ENC_CHANGE:
-        state_printf("# BLE encryption change status=%d", event->enc_change.status);
+        if (event->enc_change.status == BLE_HS_ENOTCONN) {
+            state_printf("# BLE encryption change status=%d (BLE_HS_ENOTCONN: not connected)",
+                         event->enc_change.status);
+        } else {
+            state_printf("# BLE encryption change status=%d", event->enc_change.status);
+        }
         if (event->enc_change.status == 0) {
             struct ble_gap_conn_desc description;
             if (ble_gap_conn_find(event->enc_change.conn_handle, &description) == 0 &&
@@ -353,6 +352,21 @@ void ble_mouse_start(SemaphoreHandle_t serial_mutex)
                         : ESP_FAIL);
     ble_store_config_init();
     ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+
+    state_printf("# BLE config SM_LVL=%d runtime=%d bonding=%d mitm=%d sc=%d",
+                 CONFIG_BT_NIMBLE_SM_LVL, ble_hs_cfg.sm_sec_lvl,
+                 ble_hs_cfg.sm_bonding, ble_hs_cfg.sm_mitm, ble_hs_cfg.sm_sc);
+    state_printf("# BLE key distribution our=0x%02x (ENC|ID) their=0x%02x (ENC|ID)",
+                 ble_hs_cfg.sm_our_key_dist, ble_hs_cfg.sm_their_key_dist);
+    int bond_count;
+    const int bond_count_status =
+        ble_store_util_count(BLE_STORE_OBJ_TYPE_PEER_SEC, &bond_count);
+    if (bond_count_status == 0) {
+        state_printf("# BLE stored bonds=%d", bond_count);
+    } else {
+        state_printf("# BLE stored bond count failed status=%d", bond_count_status);
+    }
+
     nimble_port_freertos_init(host_task);
 
     if (xTaskCreate(report_task, "ble_mouse", 3072, NULL, 2, NULL) != pdPASS) {
