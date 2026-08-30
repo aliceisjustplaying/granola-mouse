@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -12,11 +13,13 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
+#include "proto_badge.h"
 #include "proto_marker.h"
 #include "qmi8658.h"
 
@@ -64,8 +67,25 @@ static const co5300_lcd_init_cmd_t panel_init_commands[] = {
     {0x29, NULL, 0, 0},
 };
 
+#define TELEMETRY_BAND_HEIGHT 56
+#define TELEMETRY_BAR_HALF_WIDTH 180
+#define TELEMETRY_CENTER_X 184
+#define TELEMETRY_GYRO_SCALE_DPS 512.0f
+#define TELEMETRY_ACCEL_SCALE_MG 2000.0f
+#define TELEMETRY_CLIP_DPS 1843.0f
+#define COLOR_GYRO 0x07E0   /* green */
+#define COLOR_ACCEL 0x07FF  /* cyan */
+#define COLOR_CLIP 0xF800   /* red */
+#define COLOR_CENTER 0x39E7 /* dim gray */
+
+/* Device badge MAC table — keep in sync with devices.conf */
+static const uint8_t device_a_mac[6] = {0x1C, 0xDB, 0xD4, 0x7B, 0x7E, 0xE8};
+static const uint8_t device_b_mac[6] = {0x1C, 0xDB, 0xD4, 0x7B, 0x85, 0xC8};
+
 static DMA_ATTR uint16_t display_strip[PANEL_WIDTH * STRIP_ROWS];
 static SemaphoreHandle_t display_transfer_done;
+static esp_lcd_panel_handle_t display_panel;
+static volatile float telemetry_values[6];
 static qmi8658_dev_t imu;
 static SemaphoreHandle_t serial_output_mutex;
 static QueueHandle_t pending_imu;
@@ -173,6 +193,111 @@ static void draw_marker(esp_lcd_panel_handle_t panel)
     }
 }
 
+static void push_strips(int y0, int height, const uint16_t *source, int source_width,
+                        int x_offset)
+{
+    for (int strip_y = 0; strip_y < height; strip_y += STRIP_ROWS) {
+        const int rows = strip_y + STRIP_ROWS <= height ? STRIP_ROWS : height - strip_y;
+        for (int row = 0; row < rows; ++row) {
+            for (int x = 0; x < PANEL_WIDTH; ++x) {
+                uint16_t pixel = 0;
+                const int sx = x - x_offset;
+                if (sx >= 0 && sx < source_width) {
+                    pixel = source[(strip_y + row) * source_width + sx];
+                }
+                display_strip[row * PANEL_WIDTH + x] = byte_swap(pixel);
+            }
+        }
+        check(esp_lcd_panel_draw_bitmap(display_panel, 0, y0 + strip_y, PANEL_WIDTH,
+                                        y0 + strip_y + rows, display_strip),
+              "draw strip");
+        if (xSemaphoreTake(display_transfer_done, pdMS_TO_TICKS(1000)) != pdTRUE) {
+            printf("# FATAL display transfer timeout\n");
+            abort();
+        }
+    }
+}
+
+static void draw_badge(void)
+{
+    uint8_t mac[6] = {0};
+    check(esp_read_mac(mac, ESP_MAC_WIFI_STA), "read MAC");
+    const uint16_t *badge = badge_unknown;
+    const char *label = "?";
+    if (memcmp(mac, device_a_mac, 6) == 0) {
+        badge = badge_a;
+        label = "A";
+    } else if (memcmp(mac, device_b_mac, 6) == 0) {
+        badge = badge_b;
+        label = "B";
+    }
+    push_strips(PANEL_HEIGHT - BADGE_HEIGHT, BADGE_HEIGHT, badge, BADGE_WIDTH, 0);
+    printf("# device badge: %s (mac %02X:%02X:%02X:%02X:%02X:%02X)\n", label,
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+static void telemetry_task(void *context)
+{
+    (void)context;
+    static uint16_t band[PANEL_WIDTH * STRIP_ROWS];
+    for (;;) {
+        float values[6];
+        for (int i = 0; i < 6; ++i) {
+            values[i] = telemetry_values[i];
+        }
+        for (int strip_y = 0; strip_y < TELEMETRY_BAND_HEIGHT; strip_y += STRIP_ROWS) {
+            const int rows = strip_y + STRIP_ROWS <= TELEMETRY_BAND_HEIGHT
+                                 ? STRIP_ROWS
+                                 : TELEMETRY_BAND_HEIGHT - strip_y;
+            for (int row = 0; row < rows; ++row) {
+                const int y = strip_y + row;
+                const int bar = (y - 2) / 9;
+                const bool in_bar = y >= 2 && bar < 6 && ((y - 2) % 9) < 7;
+                for (int x = 0; x < PANEL_WIDTH; ++x) {
+                    uint16_t pixel = 0;
+                    if (in_bar) {
+                        const bool is_gyro = bar < 3;
+                        const float value = values[bar];
+                        const float scale = is_gyro ? TELEMETRY_GYRO_SCALE_DPS
+                                                    : TELEMETRY_ACCEL_SCALE_MG;
+                        const bool clipped =
+                            is_gyro && (value >= TELEMETRY_CLIP_DPS ||
+                                        value <= -TELEMETRY_CLIP_DPS);
+                        float extent = value / scale;
+                        if (extent > 1.0f) {
+                            extent = 1.0f;
+                        }
+                        if (extent < -1.0f) {
+                            extent = -1.0f;
+                        }
+                        const int length = (int)(extent * TELEMETRY_BAR_HALF_WIDTH);
+                        const int lo = length < 0 ? TELEMETRY_CENTER_X + length
+                                                  : TELEMETRY_CENTER_X;
+                        const int hi = length < 0 ? TELEMETRY_CENTER_X
+                                                  : TELEMETRY_CENTER_X + length;
+                        if (x >= lo && x <= hi) {
+                            pixel = clipped ? COLOR_CLIP
+                                            : (is_gyro ? COLOR_GYRO : COLOR_ACCEL);
+                        } else if (x >= TELEMETRY_CENTER_X - 1 &&
+                                   x <= TELEMETRY_CENTER_X + 1) {
+                            pixel = COLOR_CENTER;
+                        }
+                    }
+                    band[row * PANEL_WIDTH + x] = byte_swap(pixel);
+                }
+            }
+            check(esp_lcd_panel_draw_bitmap(display_panel, 0, strip_y, PANEL_WIDTH,
+                                            strip_y + rows, band),
+                  "draw telemetry strip");
+            if (xSemaphoreTake(display_transfer_done, pdMS_TO_TICKS(1000)) != pdTRUE) {
+                printf("# FATAL telemetry transfer timeout\n");
+                abort();
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(66));
+    }
+}
+
 static void init_display(i2c_master_bus_handle_t bus)
 {
     reset_panel_power(bus);
@@ -221,11 +346,13 @@ static void init_display(i2c_master_bus_handle_t bus)
     };
     esp_lcd_panel_handle_t panel = NULL;
     check(esp_lcd_new_panel_co5300(io, &panel_config, &panel), "create CO5300 panel");
+    display_panel = panel;
     check(esp_lcd_panel_reset(panel), "reset CO5300 panel");
     check(esp_lcd_panel_init(panel), "initialize CO5300 panel");
     check(esp_lcd_panel_set_gap(panel, PANEL_GAP_X, 0), "set CO5300 panel gap");
     check(esp_lcd_panel_disp_on_off(panel, true), "turn on CO5300 panel");
     draw_marker(panel);
+    draw_badge();
     printf("# display ready: CO5300 368x448, marker centered\n");
 }
 
@@ -279,6 +406,12 @@ static void imu_sample_task(void *context)
             pending_imu_sample_t sample;
             if (qmi8658_read_sensor_data(&imu, &sample.data) == ESP_OK) {
                 sample.timestamp_us = esp_timer_get_time();
+                telemetry_values[0] = sample.data.gyroX;
+                telemetry_values[1] = sample.data.gyroY;
+                telemetry_values[2] = sample.data.gyroZ;
+                telemetry_values[3] = sample.data.accelX;
+                telemetry_values[4] = sample.data.accelY;
+                telemetry_values[5] = sample.data.accelZ;
                 if (xQueueSend(pending_imu, &sample, 0) != pdTRUE) {
                     pending_imu_sample_t discarded;
                     (void)xQueueReceive(pending_imu, &discarded, 0);
@@ -309,6 +442,10 @@ void app_main(void)
     if (pending_imu == NULL ||
         xTaskCreate(imu_sample_task, "imu_sample", 4096, NULL, 2, NULL) != pdPASS) {
         printf("# FATAL start IMU sampling task\n");
+        abort();
+    }
+    if (xTaskCreate(telemetry_task, "telemetry", 4096, NULL, 1, NULL) != pdPASS) {
+        printf("# FATAL start telemetry task\n");
         abort();
     }
 #ifdef GRANOLA_PROTO_AUDIO
