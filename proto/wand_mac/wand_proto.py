@@ -67,6 +67,8 @@ SCREEN_X_SIGN = 1.0
 # about screen center commutes with recenter and sens; a ray-space flip would
 # break rotation composition). User-left rotation must move the cursor left.
 PIXEL_X_MIRROR = True
+GYRO_DEADBAND_DPS = 1.8   # below this rate the wand is "still" — no cursor creep
+CLICK_FREEZE_SECONDS = 0.20  # motion suppression around BOOT presses
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
@@ -815,6 +817,7 @@ def track(
     last_t_us = None
     gyro_range = 2048.0
     peak_gyro = 0.0
+    click_freeze_until_us = -1
     gyro_peaks = deque()
     clip_count = 0
     clip_times = deque()
@@ -893,6 +896,9 @@ def track(
             continue
         if parsed[0] == "BTN":
             button.update(parsed[2], displayed_target)
+            # Click-freeze: suppress motion briefly so the press doesn't jerk
+            # the cursor and double-clicks land in one spot.
+            click_freeze_until_us = (last_t_us or 0) + int(CLICK_FREEZE_SECONDS * 1e6)
             continue
 
         _, t_us, gyro_raw, accel_raw = parsed
@@ -998,6 +1004,12 @@ def track(
             continue
         ahrs.set_sample_period(dt)
         corrected_gyro = gyro - bias
+        # Motion deadband: below this rate, treat as still — kills bias creep
+        # while holding (standard air-mouse behavior).
+        if np.linalg.norm(corrected_gyro) < GYRO_DEADBAND_DPS:
+            corrected_gyro = np.zeros(3)
+        if t_us < click_freeze_until_us:
+            corrected_gyro = np.zeros(3)
         ahrs.update_no_magnetometer(corrected_gyro, accel)
         base_rotation = alignment @ imufusion.quaternion_to_matrix(ahrs.get_quaternion())
         base_ray = screen_pointing_ray(base_rotation)
