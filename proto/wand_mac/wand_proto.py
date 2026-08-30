@@ -3,13 +3,18 @@
 # dependencies = [
 #   "opencv-python",
 #   "numpy",
-#   "imufusion",
+#   "imufusion==1.3.3",
 #   "pyserial",
 #   "pyobjc-framework-Quartz",
 # ]
 # ///
 
-"""THROWAWAY Mac-side absolute-pointing prototype. See ../PROTO_SPEC.md."""
+"""THROWAWAY Mac-side absolute-pointing prototype. See ../PROTO_SPEC.md.
+
+Live tracking can be captured for replay with ``--record FILE``. The file is
+opened in append mode and receives every raw serial line, including CFG and
+unknown lines.
+"""
 
 import argparse
 import math
@@ -45,6 +50,10 @@ MOUNT_ROLL_DEG = 90.0
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 BIAS_SECONDS = 2.0
 DESK_BIAS_SECONDS = 3.0
+ALIGNMENT_SECONDS = 0.5
+AHRS_STARTUP_SECONDS = 3.0
+AHRS_SAMPLE_RATE_HZ = 200
+AHRS_REJECTION_TIMEOUT_SECONDS = 5
 REST_GYRO_DPS = 1.0
 REST_ACCEL_G_TOLERANCE = 0.08
 REST_BIAS_DELAY_SECONDS = 1.5
@@ -232,6 +241,15 @@ def parse_line(line: str):
 def replay_lines(path: Path):
     with path.open("r", encoding="utf-8") as replay:
         yield from replay
+
+
+def recorded_lines(lines, path: Path):
+    with path.open("a", encoding="utf-8") as recording:
+        for line in lines:
+            if line is not SERIAL_RECONNECT:
+                recording.write(line)
+                recording.flush()
+            yield line
 
 
 def serial_lines(port: str, baud: int):
@@ -428,28 +446,62 @@ def pointing_axis_roll(angle: float):
     return yaw_rotation(angle)
 
 
-def track(
-    lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
-    initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG,
+def gravity_aligned_screen_transform(screen_from_earth: np.ndarray):
+    """Keep visual heading while mapping NWU earth-up to screen-up exactly."""
+    screen_up = np.array([0.0, 1.0, 0.0])
+    screen_north = screen_from_earth[:, 0].copy()
+    screen_north -= np.dot(screen_north, screen_up) * screen_up
+    if np.linalg.norm(screen_north) < 1e-6:
+        screen_west = screen_from_earth[:, 1].copy()
+        screen_west -= np.dot(screen_west, screen_up) * screen_up
+        screen_west /= np.linalg.norm(screen_west)
+        screen_north = np.cross(screen_west, screen_up)
+    else:
+        screen_north /= np.linalg.norm(screen_north)
+    screen_west = np.cross(screen_up, screen_north)
+    return np.column_stack((screen_north, screen_west, screen_up))
+
+
+def aligned_screen_transform(
+    calibration_rotation: np.ndarray,
+    mount_correction: np.ndarray,
+    ahrs_rotation: np.ndarray,
 ):
+    visual_alignment = calibration_rotation @ mount_correction @ ahrs_rotation.T
+    return gravity_aligned_screen_transform(visual_alignment)
+
+
+def make_ahrs():
     ahrs = imufusion.Ahrs()
     ahrs.set_settings(
         imufusion.AhrsSettings(
-            sample_rate=200,
+            sample_rate=AHRS_SAMPLE_RATE_HZ,
             convention=imufusion.CONVENTION_NWU,
             gain=0.5,
             gyroscope_range=2048,
             acceleration_rejection=10,
             magnetic_rejection=0,
-            rejection_timeout=5,
+            # imufusion 1.3.3 defines this public setting in seconds and
+            # converts it to samples internally using sample_rate.
+            rejection_timeout=AHRS_REJECTION_TIMEOUT_SECONDS,
         )
     )
+    return ahrs
+
+
+def track(
+    lines, calibration: Calibration, display: Display, warp: bool, debug: bool,
+    initial_bias=None, mount_roll_deg=MOUNT_ROLL_DEG,
+):
+    ahrs = make_ahrs()
 
     bias_samples = []
     buffered = []
     bias_start_us = None
     bias = None if initial_bias is None else np.asarray(initial_bias)
     alignment = None
+    alignment_start_us = None
+    alignment_accel_samples = []
     last_t_us = None
     gyro_range = 2048.0
     peak_gyro = 0.0
@@ -551,24 +603,40 @@ def track(
                     ahrs.set_sample_period(dt)
                     ahrs.update_no_magnetometer(buffered_gyro - bias, buffered_accel)
                 last_t_us = buffered_t
-            # AHRS owns gravity correction; this rigid alignment gives it the
-            # webcam-observed device->screen yaw and position at calibration.
-            alignment = calibration.rotation @ mount_correction @ imufusion.quaternion_to_matrix(
-                ahrs.get_quaternion()
-            ).T
+            # AHRS owns gravity correction. Preserve the webcam heading while
+            # forcing NWU earth-up to remain screen-up so yaw cannot leak into
+            # cursor elevation.
+            alignment = aligned_screen_transform(
+                calibration.rotation,
+                mount_correction,
+                imufusion.quaternion_to_matrix(ahrs.get_quaternion()),
+            )
             buffered.clear()
             continue
 
         if alignment is None:
-            # Desk bias is already known. Converge tilt from this first gravity
-            # sample immediately, then preserve the webcam-observed yaw.
-            ahrs.set_sample_period(1.0 / 200.0)
-            for _ in range(601):  # Complete Fusion's 3 s startup instantaneously.
-                ahrs.update_no_magnetometer(np.zeros(3), accel)
-            alignment = calibration.rotation @ mount_correction @ imufusion.quaternion_to_matrix(
-                ahrs.get_quaternion()
-            ).T
+            # Desk bias is already known. Use the median of a real convergence
+            # window so one handheld acceleration sample cannot tilt the
+            # permanent earth-to-screen alignment and couple yaw drift into
+            # elevation. The user must hold the calibration pose for this
+            # short window.
+            if alignment_start_us is None or t_us < alignment_start_us:
+                alignment_start_us = t_us
+                alignment_accel_samples.clear()
+            alignment_accel_samples.append(accel.copy())
             last_t_us = t_us
+            if t_us - alignment_start_us < ALIGNMENT_SECONDS * 1e6:
+                continue
+            representative_accel = np.median(alignment_accel_samples, axis=0)
+            ahrs = make_ahrs()
+            ahrs.set_sample_period(1.0 / AHRS_SAMPLE_RATE_HZ)
+            for _ in range(round(AHRS_STARTUP_SECONDS * AHRS_SAMPLE_RATE_HZ) + 1):
+                ahrs.update_no_magnetometer(np.zeros(3), representative_accel)
+            alignment = aligned_screen_transform(
+                calibration.rotation,
+                mount_correction,
+                imufusion.quaternion_to_matrix(ahrs.get_quaternion()),
+            )
             continue
 
         dt = (t_us - last_t_us) / 1e6
@@ -701,6 +769,10 @@ def main():
     parser.add_argument("--port", default=DEFAULT_PORT)
     parser.add_argument("--baud", type=int, default=921600)
     parser.add_argument("--replay", type=Path, metavar="FILE")
+    parser.add_argument(
+        "--record", type=Path, metavar="FILE",
+        help="append every raw serial line during live tracking",
+    )
     parser.add_argument("--fake-calib", action="store_true")
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--warp", action="store_true", help="warp cursor during replay")
@@ -710,6 +782,8 @@ def main():
     parser.add_argument("--mount-roll", type=float, default=MOUNT_ROLL_DEG, metavar="DEG",
                         help="fixed calibration roll around the pointing axis")
     args = parser.parse_args()
+    if args.record is not None and args.replay is not None:
+        parser.error("--record is only available during live tracking")
 
     if args.probe:
         lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
@@ -742,6 +816,8 @@ def main():
     if use_fake_calibration:
         print("CALIBRATION fake position_mm=[0.0, 0.0, -500.0] quaternion_wxyz=[1,0,0,0]")
     lines = replay_lines(args.replay) if args.replay else serial_lines(args.port, args.baud)
+    if args.record is not None:
+        lines = recorded_lines(lines, args.record)
     track(
         lines, calibration, display, warp=args.warp or args.replay is None,
         debug=args.debug, initial_bias=desk_bias, mount_roll_deg=args.mount_roll,
