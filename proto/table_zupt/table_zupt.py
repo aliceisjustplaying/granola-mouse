@@ -12,7 +12,10 @@
 from __future__ import annotations
 
 import argparse
+import re
+import shlex
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +46,39 @@ CURSOR_GAIN_EXPONENT = 1.5
 GRAVITY_M_S2 = 9.80665
 DEFAULT_PORT = "/dev/cu.usbmodem101"
 
+# Name, instruction, duration. Action windows deliberately include time for the
+# user's reaction after GO; analysis gates on the whole marked window.
+GUIDED_PROTOCOL = [
+    ("PREP_STILL", "Hands ON the device like a mouse, completely still", 3.0),
+    ("BRISK_R1", "Slide RIGHT briskly between your two endpoints — GO", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("BRISK_L1", "Slide LEFT briskly between your two endpoints — GO", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("BRISK_R2", "Slide RIGHT briskly between your two endpoints — GO", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("BRISK_L2", "Slide LEFT briskly between your two endpoints — GO", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("BRISK_R3", "Slide RIGHT briskly between your two endpoints — GO", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("BRISK_L3", "Slide LEFT briskly between your two endpoints — GO", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("MEDIUM_R", "Slide RIGHT taking about 1.5 seconds — smooth", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("MEDIUM_L", "Slide LEFT taking about 1.5 seconds — smooth", 3.5),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("SLOW_R", "Drag RIGHT VERY slowly, about 3 seconds", 5.0),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("SLOW_L", "Drag LEFT VERY slowly, about 3 seconds", 5.0),
+    ("FREEZE", "FREEZE — do not move at all", 3.0),
+    ("CIRCLE", "Draw one smooth circle", 4.0),
+    ("FINAL_STILL", "Hands ON the device, completely still", 3.0),
+]
+
+MARKER_RE = re.compile(
+    r"^# STEP (?P<step>\d+) (?P<name>\S+) (?P<event>START|END) "
+    r"host=(?P<host>[-+0-9.eE]+)$"
+)
+
 
 @dataclass
 class Stroke:
@@ -53,6 +89,21 @@ class Stroke:
     path_m: np.ndarray
     velocity_m_s: np.ndarray
     sample_times_s: np.ndarray
+
+
+@dataclass(frozen=True)
+class GuidedWindow:
+    step: int
+    name: str
+    start_s: float
+    end_s: float
+
+
+@dataclass(frozen=True)
+class GuidedResult:
+    window: GuidedWindow
+    displacement_m: np.ndarray
+    motion_detected: bool
 
 
 def load_imu(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -77,6 +128,52 @@ def load_imu(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         print(f"warning: discarded {np.count_nonzero(~monotonic)} non-monotonic rows")
         t_s, values = t_s[monotonic], values[monotonic]
     return t_s, values[:, 1:4], values[:, 4:7]
+
+
+def load_guided_windows(path: Path) -> list[GuidedWindow]:
+    """Map interleaved host markers onto adjacent device sample timestamps."""
+    sample_t_us: list[float] = []
+    records: list[tuple[int, str, str, int]] = []
+    with path.open(errors="replace") as source:
+        for line in source:
+            marker = MARKER_RE.match(line.strip())
+            if marker:
+                # The insertion point is stable even though host and device use
+                # unrelated clocks: START takes the next sample and END the last.
+                records.append(
+                    (
+                        int(marker.group("step")),
+                        marker.group("name"),
+                        marker.group("event"),
+                        len(sample_t_us),
+                    )
+                )
+                continue
+            fields = line.strip().split(",")
+            if len(fields) == 8 and fields[0] == "IMU":
+                try:
+                    sample_t_us.append(float(fields[1]))
+                except ValueError:
+                    pass
+
+    if not records or not sample_t_us:
+        return []
+    origin_us = sample_t_us[0]
+    boundaries: dict[tuple[int, str], dict[str, float]] = {}
+    for step, name, event, insertion in records:
+        if event == "START":
+            sample_index = min(insertion, len(sample_t_us) - 1)
+        else:
+            sample_index = min(max(0, insertion - 1), len(sample_t_us) - 1)
+        boundaries.setdefault((step, name), {})[event] = (
+            sample_t_us[sample_index] - origin_us
+        ) * 1e-6
+
+    windows = []
+    for (step, name), events in sorted(boundaries.items()):
+        if "START" in events and "END" in events and events["END"] >= events["START"]:
+            windows.append(GuidedWindow(step, name, events["START"], events["END"]))
+    return windows
 
 
 def centered_windows(values: np.ndarray, width: int) -> np.ndarray:
@@ -356,6 +453,160 @@ def simulate_cursor(path: Path) -> None:
     print(f"cursor plot: {output}")
 
 
+def analyze_guided_windows(
+    windows: list[GuidedWindow],
+    t_s: np.ndarray,
+    gyro_dps: np.ndarray,
+    accel_g: np.ndarray,
+    rest: np.ndarray,
+) -> list[GuidedResult]:
+    """Integrate each marker-gated interval independently with terminal ZUPT."""
+    results = []
+    sample_dt = float(np.median(np.diff(t_s)))
+    for window in windows:
+        start = int(np.searchsorted(t_s, window.start_s, side="left"))
+        end = int(np.searchsorted(t_s, window.end_s, side="right"))
+        start = min(start, len(t_s) - 2)
+        end = max(start + 2, min(end, len(t_s)))
+
+        # Prefer stationary samples immediately before the step. PREP_STILL has
+        # no predecessor, so its own first second supplies the initial estimate.
+        calibration = rest & (t_s >= window.start_s - 1.5) & (t_s < window.start_s)
+        if not np.any(calibration):
+            calibration = rest & (t_s >= window.start_s) & (
+                t_s <= min(window.end_s, window.start_s + 1.0)
+            )
+        if not np.any(calibration):
+            calibration = rest & (t_s <= window.start_s)
+        if not np.any(calibration):
+            calibration = np.arange(len(t_s)) < min(len(t_s), max(3, int(0.5 / sample_dt)))
+
+        gravity_g = np.mean(accel_g[calibration], axis=0)
+        gyro_bias_dps = np.mean(gyro_dps[calibration], axis=0)
+        segment = slice(start, end)
+        path, _velocity, _desk_accel = integrate_interval(
+            t_s[segment],
+            gyro_dps[segment],
+            accel_g[segment],
+            gravity_g,
+            gyro_bias_dps,
+        )
+
+        local_motion = ~rest[start:end]
+        longest_motion_s = max(
+            (
+                (run_end - run_start) * sample_dt
+                for run_start, run_end in contiguous_runs(local_motion)
+            ),
+            default=0.0,
+        )
+        rest_gate_detected_motion = longest_motion_s >= VIBRATION_MOTION_MIN_S
+        is_still_window = window.name in {"PREP_STILL", "FINAL_STILL", "FREEZE"}
+        motion_detected = rest_gate_detected_motion or (
+            not is_still_window and np.max(np.linalg.norm(path, axis=1)) >= 0.005
+        )
+        # ZUPT defines a fully qualified rest window as zero displacement. Only
+        # expose phantom displacement when the motion gate actually opened.
+        displacement = path[-1] if motion_detected or not is_still_window else np.zeros(2)
+        results.append(
+            GuidedResult(
+                window=window,
+                displacement_m=displacement,
+                motion_detected=motion_detected,
+            )
+        )
+    return results
+
+
+def report_guided_analysis(
+    windows: list[GuidedWindow],
+    t_s: np.ndarray,
+    gyro_dps: np.ndarray,
+    accel_g: np.ndarray,
+    rest: np.ndarray,
+) -> list[GuidedResult]:
+    results = analyze_guided_windows(windows, t_s, gyro_dps, accel_g, rest)
+    actions = [
+        result
+        for result in results
+        if result.window.name not in {"PREP_STILL", "FINAL_STILL", "FREEZE"}
+    ]
+    print("\nGUIDED ACTION SEGMENTS")
+    for result in actions:
+        x_mm, y_mm = result.displacement_m * 1000.0
+        magnitude_mm = float(np.linalg.norm(result.displacement_m) * 1000.0)
+        angle_deg = float(np.degrees(np.arctan2(y_mm, x_mm)))
+        print(
+            f"{result.window.name}: displacement=({x_mm:+.2f}, {y_mm:+.2f}) mm, "
+            f"magnitude={magnitude_mm:.2f} mm, direction={angle_deg:+.1f} deg, "
+            f"motion={'YES' if result.motion_detected else 'NO'}"
+        )
+
+    by_name = {result.window.name: result for result in actions}
+
+    def magnitude(name: str) -> float:
+        result = by_name.get(name)
+        return float(np.linalg.norm(result.displacement_m) * 1000.0) if result else float("nan")
+
+    brisk_names = [f"BRISK_{direction}{repeat}" for repeat in range(1, 4) for direction in "RL"]
+    brisk_magnitudes = np.asarray([magnitude(name) for name in brisk_names])
+    brisk_mean = float(np.nanmean(brisk_magnitudes))
+    repeatability = 100.0 * float(np.nanstd(brisk_magnitudes)) / brisk_mean
+
+    print("\nSCORECARD")
+    print(
+        f"brisk repeatability: std/mean={repeatability:.2f}% "
+        f"(mean={brisk_mean:.2f} mm, n={np.count_nonzero(np.isfinite(brisk_magnitudes))})"
+    )
+    for repeat in range(1, 4):
+        right = magnitude(f"BRISK_R{repeat}")
+        left = magnitude(f"BRISK_L{repeat}")
+        pair_mean = (right + left) / 2.0
+        mismatch = 100.0 * abs(right - left) / pair_mean
+        print(
+            f"L/R symmetry pair {repeat}: L/R={left / right:.3f}, "
+            f"mismatch={mismatch:.2f}% (R={right:.2f} mm, L={left:.2f} mm)"
+        )
+    for speed in ("MEDIUM", "SLOW"):
+        ratios = []
+        for direction in "RL":
+            reference = float(
+                np.mean([magnitude(f"BRISK_{direction}{repeat}") for repeat in range(1, 4)])
+            )
+            ratio = magnitude(f"{speed}_{direction}") / reference
+            ratios.append(f"{direction}={ratio:.3f}")
+        print(f"{speed.lower()}/brisk magnitude ratio: " + ", ".join(ratios) + " (target ~1.0)")
+    print(
+        "slow-drag detection: "
+        + ", ".join(
+            f"{direction}={'YES' if by_name.get(f'SLOW_{direction}') and by_name[f'SLOW_{direction}'].motion_detected else 'NO'}"
+            for direction in "RL"
+        )
+    )
+    print(f"circle endpoint closure: {magnitude('CIRCLE'):.3f} mm")
+
+    still_results = [
+        result
+        for result in results
+        if result.window.name in {"PREP_STILL", "FINAL_STILL", "FREEZE"}
+    ]
+    still_labels = []
+    freeze_number = 0
+    for result in still_results:
+        label = result.window.name
+        if label == "FREEZE":
+            freeze_number += 1
+            label = f"FREEZE_{freeze_number}"
+        still_labels.append(
+            f"{label}={np.linalg.norm(result.displacement_m) * 1000.0:.3f}"
+        )
+    print("phantom motion (mm; target ~0): " + ", ".join(still_labels))
+    if still_results:
+        still_mm = [np.linalg.norm(result.displacement_m) * 1000.0 for result in still_results]
+        print(f"phantom summary: max={max(still_mm):.3f} mm, total={sum(still_mm):.3f} mm")
+    return results
+
+
 def report_analysis(path: Path) -> tuple[list[Stroke], np.ndarray]:
     t_s, gyro_dps, accel_g = load_imu(path)
     strokes, rest, vibration_g = reconstruct(t_s, gyro_dps, accel_g)
@@ -404,31 +655,87 @@ def report_analysis(path: Path) -> tuple[list[Stroke], np.ndarray]:
             else ""
         )
     )
+    windows = load_guided_windows(path)
+    if windows:
+        report_guided_analysis(windows, t_s, gyro_dps, accel_g, rest)
     output = save_plot(path, strokes)
     print(f"plot: {output}")
     return strokes, rest
 
 
-def capture(port: str, output: Path, baud: int, seconds: float) -> None:
+def capture(
+    port: str,
+    output: Path,
+    baud: int,
+    seconds: float,
+    guided: bool = False,
+    bell: bool = False,
+) -> None:
     import serial
 
     print(f"capturing raw serial lines from {port} at {baud} baud to {output}")
-    print("press Ctrl-C to stop")
+    if not guided:
+        print("press Ctrl-C to stop")
     started = time.monotonic()
     count = 0
+
+    def write_serial_line(device: serial.Serial, sink) -> None:
+        nonlocal count
+        raw = device.readline()
+        if not raw:
+            return
+        sink.write(raw.decode("utf-8", errors="replace").rstrip("\r\n") + "\n")
+        count += 1
+        if count % 100 == 0:
+            sink.flush()
+
     try:
-        with serial.Serial(port, baudrate=baud, timeout=1) as device, output.open("w") as sink:
-            while seconds <= 0 or time.monotonic() - started < seconds:
-                raw = device.readline()
-                if not raw:
-                    continue
-                sink.write(raw.decode("utf-8", errors="replace").rstrip("\r\n") + "\n")
-                count += 1
-                if count % 100 == 0:
+        # A short timeout keeps the countdown responsive even if samples pause.
+        with serial.Serial(port, baudrate=baud, timeout=0.05) as device, output.open("w") as sink:
+            if guided:
+                for step, (name, instruction, duration) in enumerate(GUIDED_PROTOCOL, 1):
+                    marker = f"# STEP {step} {name} START host={time.time():.3f}"
+                    sink.write(marker + "\n")
                     sink.flush()
+                    print(
+                        "\n" + "=" * 72 + "\n"
+                        f"GUIDED STEP {step}/{len(GUIDED_PROTOCOL)} — {name}\n"
+                        f"{instruction}\n"
+                        + "=" * 72
+                    )
+                    step_started = time.monotonic()
+                    deadline = step_started + duration
+                    next_countdown = step_started
+                    while time.monotonic() < deadline:
+                        write_serial_line(device, sink)
+                        now = time.monotonic()
+                        if now >= next_countdown:
+                            remaining = max(0.0, deadline - now)
+                            print(
+                                f"\rSTEP {step}/{len(GUIDED_PROTOCOL)} | {remaining:4.1f}s remaining",
+                                end="",
+                                flush=True,
+                            )
+                            next_countdown = now + 0.5
+                    print(
+                        f"\rSTEP {step}/{len(GUIDED_PROTOCOL)} |  0.0s remaining",
+                        flush=True,
+                    )
+                    marker = f"# STEP {step} {name} END host={time.time():.3f}"
+                    sink.write(marker + "\n")
+                    sink.flush()
+                    if bell:
+                        print("\a", end="", flush=True)
+            else:
+                while seconds <= 0 or time.monotonic() - started < seconds:
+                    write_serial_line(device, sink)
     except KeyboardInterrupt:
         pass
     print(f"captured {count} lines to {output}")
+    if guided:
+        command = f"uv run {shlex.quote(str(Path(__file__)))} --analyze {shlex.quote(str(output))}"
+        print(f"guided capture complete: {output}")
+        print(f"next: {command}")
 
 
 def synthetic_capture() -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
@@ -455,6 +762,99 @@ def synthetic_capture() -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     accel[:, 0] += accel_m_s2 / GRAVITY_M_S2
     accel[:, 0] += 0.001  # requested constant 1 mg accelerometer bias
     return t_s, gyro, accel, distance_m
+
+
+def write_synthetic_marked_capture(path: Path) -> None:
+    """Create a complete guided run with realistic post-GO reaction delays."""
+    sample_path = Path(__file__).resolve().parents[1] / "sample_imu.csv"
+    _, source_gyro, source_accel = load_imu(sample_path)
+    rng = np.random.default_rng(20260830)
+    rate_hz = 219.0
+    total_s = sum(duration for _name, _instruction, duration in GUIDED_PROTOCOL)
+    t_s = np.arange(0.0, total_s + 0.5 / rate_hz, 1.0 / rate_hz)
+    indices = rng.integers(0, len(source_gyro), size=len(t_s))
+    gyro = np.mean(source_gyro, axis=0) + (
+        source_gyro[indices] - np.mean(source_gyro, axis=0)
+    )
+    accel = np.mean(source_accel, axis=0) + (
+        source_accel[indices] - np.mean(source_accel, axis=0)
+    )
+    accel[:, 0] += 0.001
+
+    events: list[tuple[float, int, str, str]] = []
+    step_starts: dict[str, float] = {}
+    elapsed = 0.0
+    for step, (name, _instruction, duration) in enumerate(GUIDED_PROTOCOL, 1):
+        events.append((elapsed, step, name, "START"))
+        step_starts[name] = elapsed
+        elapsed += duration
+        events.append((elapsed, step, name, "END"))
+
+    linear_specs = [
+        ("BRISK_R1", +0.098, 0.50, 0.35),
+        ("BRISK_L1", -0.101, 0.50, 0.42),
+        ("BRISK_R2", +0.100, 0.50, 0.50),
+        ("BRISK_L2", -0.099, 0.50, 0.58),
+        ("BRISK_R3", +0.102, 0.50, 0.66),
+        ("BRISK_L3", -0.100, 0.50, 0.74),
+        ("MEDIUM_R", +0.100, 1.50, 0.48),
+        ("MEDIUM_L", -0.100, 1.50, 0.62),
+        ("SLOW_R", +0.100, 3.00, 0.52),
+        ("SLOW_L", -0.100, 3.00, 0.68),
+    ]
+    for name, distance_m, duration_s, reaction_s in linear_specs:
+        movement_start = step_starts[name] + reaction_s
+        phase = (t_s - movement_start) / duration_s
+        active = (phase >= 0.0) & (phase <= 1.0)
+        desk_accel = np.zeros(len(t_s))
+        desk_accel[active] = (
+            2.0
+            * np.pi
+            * distance_m
+            / duration_s**2
+            * np.sin(2.0 * np.pi * phase[active])
+        )
+        accel[:, 0] += desk_accel / GRAVITY_M_S2
+
+    circle_start = step_starts["CIRCLE"] + 0.50
+    circle_duration_s = 2.0
+    circle_phase = (t_s - circle_start) / circle_duration_s
+    active = (circle_phase >= 0.0) & (circle_phase <= 1.0)
+    phase = circle_phase[active]
+    theta = 2.0 * np.pi * (3.0 * phase**2 - 2.0 * phase**3)
+    theta_rate = 2.0 * np.pi * (6.0 * phase - 6.0 * phase**2) / circle_duration_s
+    theta_accel = 2.0 * np.pi * (6.0 - 12.0 * phase) / circle_duration_s**2
+    radius_m = 0.040
+    accel[active, 0] += (
+        radius_m * (np.cos(theta) * theta_rate**2 + np.sin(theta) * theta_accel)
+        / GRAVITY_M_S2
+    )
+    accel[active, 1] += (
+        radius_m * (-np.sin(theta) * theta_rate**2 + np.cos(theta) * theta_accel)
+        / GRAVITY_M_S2
+    )
+
+    event_index = 0
+    with path.open("w") as sink:
+        for index, sample_time in enumerate(t_s):
+            while event_index < len(events) and events[event_index][0] <= sample_time + 1e-9:
+                event_time, step, name, event = events[event_index]
+                sink.write(
+                    f"# STEP {step} {name} {event} host={1_700_000_000.0 + event_time:.3f}\n"
+                )
+                event_index += 1
+            values = np.r_[gyro[index], accel[index]]
+            sink.write(
+                f"IMU,{int(round(sample_time * 1e6))},"
+                + ",".join(f"{value:.9f}" for value in values)
+                + "\n"
+            )
+        while event_index < len(events):
+            event_time, step, name, event = events[event_index]
+            sink.write(
+                f"# STEP {step} {name} {event} host={1_700_000_000.0 + event_time:.3f}\n"
+            )
+            event_index += 1
 
 
 def verify() -> None:
@@ -525,6 +925,41 @@ def verify() -> None:
     if motion_detection < 75.0:
         raise SystemExit("synthetic verification failed: vibration gate missed smooth drag")
 
+    print("\nsynthetic marked guided capture (reaction delays 0.35-0.74 s)")
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        marked_path = Path(temporary_directory) / "synthetic_guided.csv"
+        write_synthetic_marked_capture(marked_path)
+        marked_t, marked_gyro, marked_accel = load_imu(marked_path)
+        marked_windows = load_guided_windows(marked_path)
+        _strokes, marked_rest, _energy = reconstruct(marked_t, marked_gyro, marked_accel)
+        if len(marked_windows) != len(GUIDED_PROTOCOL):
+            raise SystemExit(
+                f"synthetic guided verification failed: parsed {len(marked_windows)} "
+                f"of {len(GUIDED_PROTOCOL)} marker windows"
+            )
+        guided_results = report_guided_analysis(
+            marked_windows, marked_t, marked_gyro, marked_accel, marked_rest
+        )
+        guided_by_name = {
+            result.window.name: result
+            for result in guided_results
+            if result.window.name != "FREEZE"
+        }
+        missed = [
+            name
+            for name in ("SLOW_R", "SLOW_L")
+            if not guided_by_name[name].motion_detected
+        ]
+        if missed:
+            raise SystemExit(
+                "synthetic guided verification failed: missed " + ", ".join(missed)
+            )
+        circle_mm = np.linalg.norm(guided_by_name["CIRCLE"].displacement_m) * 1000.0
+        if circle_mm > 5.0:
+            raise SystemExit(
+                f"synthetic guided verification failed: circle closure {circle_mm:.3f} mm"
+            )
+
 
 def main() -> None:
     # Line-buffer stdout so output appears live even when piped through tee.
@@ -538,14 +973,37 @@ def main() -> None:
     parser.add_argument("--port", default=DEFAULT_PORT)
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--seconds", type=float, default=0.0, help="capture duration; 0 means until Ctrl-C")
+    parser.add_argument(
+        "--guided",
+        action="store_true",
+        help="pace and self-annotate the guided table-motion capture protocol",
+    )
+    parser.add_argument(
+        "--bell",
+        action="store_true",
+        help="ring the terminal bell after guided steps (default: off)",
+    )
     args = parser.parse_args()
+    if args.guided and args.capture is None:
+        parser.error("--guided requires --capture FILE")
+    if args.bell and not args.guided:
+        parser.error("--bell requires --guided")
+    if args.guided and args.seconds != 0.0:
+        parser.error("--seconds cannot be combined with --guided; the protocol stops automatically")
 
     if args.analyze:
         report_analysis(args.analyze)
     elif args.cursor_sim:
         simulate_cursor(args.cursor_sim)
     elif args.capture:
-        capture(args.port, args.capture, args.baud, args.seconds)
+        capture(
+            args.port,
+            args.capture,
+            args.baud,
+            args.seconds,
+            guided=args.guided,
+            bell=args.bell,
+        )
     else:
         verify()
 
