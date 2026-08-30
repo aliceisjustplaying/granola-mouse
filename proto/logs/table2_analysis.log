@@ -1,0 +1,15 @@
+loaded 5484 samples over 25.024 s (219.1 Hz); rest=41.8%
+stroke 1: duration=0.160 s, peak_accel=0.062 m/s^2, displacement=(+0.01, +0.02) mm, magnitude=0.02 mm
+stroke 2: duration=0.201 s, peak_accel=1.030 m/s^2, displacement=(-0.09, -0.03) mm, magnitude=0.09 mm
+stroke 3: duration=0.160 s, peak_accel=2.264 m/s^2, displacement=(-0.36, +0.03) mm, magnitude=0.36 mm
+stroke 4: duration=0.283 s, peak_accel=0.105 m/s^2, displacement=(+0.05, -0.03) mm, magnitude=0.06 mm
+stroke 5: duration=0.014 s, peak_accel=0.039 m/s^2, displacement=(-0.00, -0.00) mm, magnitude=0.00 mm
+stroke 6: duration=7.225 s, peak_accel=16.102 m/s^2, displacement=(-22.85, -74.19) mm, magnitude=77.63 mm
+stroke 7: duration=3.391 s, peak_accel=7.697 m/s^2, displacement=(-16.58, -14.53) mm, magnitude=22.05 mm
+stroke 8: duration=2.680 s, peak_accel=5.567 m/s^2, displacement=(+35.56, +6.32) mm, magnitude=36.12 mm
+total endpoint displacement across detected strokes: 136.327 mm
+vibration energy rest (mg RMS): p10=1.08, p25=1.37, p50=1.96, p75=2.69, p90=3.46, p95=3.91
+vibration energy stroke (mg RMS): p10=2.47, p25=3.90, p50=6.10, p75=11.04, p90=18.97, p95=31.77
+vibration separation (mg RMS): median gap=+4.15, stroke p25 - rest p95=-0.01
+micro-rests (qualified interior rest runs <0.5 s): 2; start/duration=7.353s/0.196s, 14.774s/0.255s
+plot: proto/logs/table2_table_zupt.png

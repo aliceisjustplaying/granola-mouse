@@ -1,0 +1,8 @@
+audio: 724800 samples in 755 chunks (15.100 s received)
+AUD timestamp discontinuities: 0; inferred missing samples=0; capture coverage=100.000%
+effective sample rate on continuous intervals: 47999.997 Hz; drift vs 48000 Hz=-0.1 ppm
+IMU during audio: 2528 lines, sustained rate=167.44 Hz (target near 219 Hz)
+tone 21500 Hz: detected bin=21497.28 Hz, bin/local-noise SNR=7.31 dB
+tone 22500 Hz: detected bin=22501.85 Hz, bin/local-noise SNR=6.93 dB
+spectrogram: proto/logs/acoustic1_spectrogram.png
+FFT: proto/logs/acoustic1_fft.png

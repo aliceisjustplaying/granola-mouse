@@ -1,0 +1,17 @@
+loaded 6677 samples over 30.468 s (219.1 Hz); rest=64.7%
+stroke 1: duration=0.014 s, peak_accel=0.017 m/s^2, displacement=(-0.00, -0.00) mm, magnitude=0.00 mm
+stroke 2: duration=0.032 s, peak_accel=0.025 m/s^2, displacement=(+0.00, -0.01) mm, magnitude=0.01 mm
+stroke 3: duration=0.447 s, peak_accel=0.216 m/s^2, displacement=(+0.25, -0.30) mm, magnitude=0.39 mm
+stroke 4: duration=0.023 s, peak_accel=0.032 m/s^2, displacement=(-0.01, +0.00) mm, magnitude=0.01 mm
+stroke 5: duration=0.018 s, peak_accel=0.028 m/s^2, displacement=(-0.00, -0.00) mm, magnitude=0.00 mm
+stroke 6: duration=0.278 s, peak_accel=1.178 m/s^2, displacement=(+0.06, -0.34) mm, magnitude=0.35 mm
+stroke 7: duration=2.145 s, peak_accel=1.830 m/s^2, displacement=(-39.46, +119.15) mm, magnitude=125.51 mm
+stroke 8: duration=1.488 s, peak_accel=1.813 m/s^2, displacement=(-34.92, -113.78) mm, magnitude=119.02 mm
+stroke 9: duration=0.995 s, peak_accel=4.996 m/s^2, displacement=(+90.60, +2.53) mm, magnitude=90.64 mm
+stroke 10: duration=1.049 s, peak_accel=2.114 m/s^2, displacement=(-94.87, +5.17) mm, magnitude=95.02 mm
+stroke 11: duration=3.217 s, peak_accel=5.012 m/s^2, displacement=(+173.39, -229.54) mm, magnitude=287.67 mm
+stroke 12: duration=0.132 s, peak_accel=1.337 m/s^2, displacement=(-0.12, -0.17) mm, magnitude=0.21 mm
+stroke 13: duration=0.183 s, peak_accel=0.147 m/s^2, displacement=(+0.00, +0.06) mm, magnitude=0.06 mm
+stroke 14: duration=0.813 s, peak_accel=0.941 m/s^2, displacement=(-0.31, -2.54) mm, magnitude=2.56 mm
+total endpoint displacement across detected strokes: 721.444 mm
+plot: proto/logs/table1_table_zupt.png

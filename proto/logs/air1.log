@@ -1,0 +1,187 @@
+DISPLAY origin=(0,0) px=1512x982 physical_mm=301.2x195.6
+place device flat on desk, press EnterOpening /dev/cu.usbmodem101 at 921600 baud
+GYRO BIAS dps=[9.08346, 1.49678, 0.35281] std_dps=[0.45758, 0.43774, 0.50894]
+CALIBRATION position_mm=[25.1, 43.2, -441.3] quaternion_wxyz=[0.71233, -0.09139, 0.00043, -0.69587]
+Opening /dev/cu.usbmodem101 at 921600 baud
+TRACK MOVING  rate=  1 Hz  drift=  +0.00 deg/min  peak=   14.1/2048 dps  cursor=no intersection  ray_az/el=+97.5/+0.8deg hit_mm=none
+TRACK MOVING  rate=111 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+99.0/-0.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+99.1/-1.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+99.7/-2.2deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+99.5/-2.0deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+100.0/-3.1deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+100.5/-3.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+100.6/-3.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+100.7/-3.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+100.6/-4.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+100.9/-4.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+101.1/-5.4deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+101.1/-5.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+101.5/-6.0deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   34.2/2048 dps  cursor=no intersection  ray_az/el=+102.7/-6.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  224.9/2048 dps  cursor=no intersection  ray_az/el=+123.1/+21.5deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1494,0  ray_az/el=+30.8/+14.7deg hit_mm=+288.0,+134.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,645  ray_az/el=+51.9/-2.0deg hit_mm=+588.5,-25.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+62.2/-13.8deg hit_mm=+862.5,-232.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+75.5/-14.5deg hit_mm=+1736.9,-457.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+79.2/-16.1deg hit_mm=+2335.4,-679.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+74.4/-17.0deg hit_mm=+1606.7,-503.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+75.4/-18.2deg hit_mm=+1720.5,-575.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+76.0/-17.8deg hit_mm=+1794.9,-584.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,980  ray_az/el=+79.3/-23.7deg hit_mm=+2365.9,-1046.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=+97.4/-23.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=+111.1/-48.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=+109.1/-66.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1511,981  ray_az/el=+39.3/-76.3deg hit_mm=+386.8,-2342.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1176,981  ray_az/el=+6.8/-73.2deg hit_mm=+77.6,-1474.5
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-161.4/-84.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-148.4/-65.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-118.4/-78.1deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-177.2/-64.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-146.4/-51.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-119.3/-64.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-122.6/-69.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-118.7/-69.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-107.6/-63.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-130.9/-62.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-156.9/-15.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1511,0  ray_az/el=+27.0/+81.1deg hit_mm=+250.0,+3155.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-178.4/-19.0deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=0,981  ray_az/el=-48.9/-41.6deg hit_mm=-481.3,-595.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=1510,981  ray_az/el=+82.8/-24.5deg hit_mm=+3504.5,-1595.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  725.0/2048 dps  cursor=no intersection  ray_az/el=-163.5/+63.1deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=254,233  ray_az/el=-15.6/+6.6deg hit_mm=-97.8,+53.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=1147,980  ray_az/el=+8.2/-18.8deg hit_mm=+89.1,-151.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=987,721  ray_az/el=+2.8/-6.2deg hit_mm=+46.6,-47.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=746,737  ray_az/el=-3.4/-6.9deg hit_mm=-0.8,-53.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=785,979  ray_az/el=-2.3/-13.6deg hit_mm=+7.3,-106.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=884,980  ray_az/el=+0.5/-19.0deg hit_mm=+28.6,-151.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=942,980  ray_az/el=+1.6/-21.3deg hit_mm=+37.6,-172.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=949,980  ray_az/el=+1.6/-24.7deg hit_mm=+37.3,-203.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=924,980  ray_az/el=+0.7/-28.2deg hit_mm=+30.4,-236.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=970,980  ray_az/el=+2.7/-30.4deg hit_mm=+46.3,-259.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=1081,980  ray_az/el=+4.3/-34.4deg hit_mm=+58.1,-303.5
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=1117,980  ray_az/el=+6.9/-34.8deg hit_mm=+78.2,-309.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=1510,428  ray_az/el=+30.7/+2.6deg hit_mm=+287.2,+23.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=1510,187  ray_az/el=+25.3/+4.4deg hit_mm=+233.8,+37.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  923.4/2048 dps  cursor=no intersection  ray_az/el=+128.4/+26.5deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1308,877  ray_az/el=+11.4/-11.5deg hit_mm=+114.2,-91.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1135,980  ray_az/el=+5.7/-11.9deg hit_mm=+69.3,-93.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=885,735  ray_az/el=+0.4/-6.9deg hit_mm=+28.2,-53.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1043,675  ray_az/el=+3.9/-4.2deg hit_mm=+55.2,-32.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1033,774  ray_az/el=+4.6/-6.1deg hit_mm=+60.4,-47.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1081,519  ray_az/el=+4.8/-0.7deg hit_mm=+62.2,-5.5
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1095,417  ray_az/el=+6.1/+2.1deg hit_mm=+72.3,+16.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1326,577  ray_az/el=+12.1/-2.9deg hit_mm=+119.9,-22.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,855  ray_az/el=+17.4/-8.9deg hit_mm=+163.5,-72.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1011,929  ray_az/el=+3.0/-10.5deg hit_mm=+48.1,-81.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=817,923  ray_az/el=-1.0/-10.6deg hit_mm=+17.7,-82.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=826,979  ray_az/el=-1.7/-16.0deg hit_mm=+12.4,-126.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+17.6/-22.2deg hit_mm=+165.4,-189.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+16.6/-21.5deg hit_mm=+156.5,-181.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+46.3/-20.5deg hit_mm=+487.1,-238.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+50.8/-19.3deg hit_mm=+565.9,-244.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,974  ray_az/el=+19.1/-13.1deg hit_mm=+177.8,-108.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+23.5/-19.3deg hit_mm=+217.3,-168.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+26.3/-20.5deg hit_mm=+242.8,-183.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+50.4/-23.8deg hit_mm=+559.2,-306.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,538  ray_az/el=+76.7/+0.2deg hit_mm=+1894.1,+5.5
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 1145.4/2048 dps  cursor=1510,980  ray_az/el=+74.9/-9.9deg hit_mm=+1656.5,-294.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION! CLIP!  cursor=no intersection  ray_az/el=-178.4/-3.0deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION! CLIP!  cursor=no intersection  ray_az/el=-168.4/-11.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION! CLIP!  cursor=no intersection  ray_az/el=-129.4/-5.4deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION! CLIP!  cursor=no intersection  ray_az/el=-142.9/-7.1deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-136.4/-7.4deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-137.8/-5.1deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-120.1/-11.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+137.5/-12.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+118.2/-1.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1511,0  ray_az/el=+56.2/+14.2deg hit_mm=+684.0,+200.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1511,0  ray_az/el=+50.4/+24.5deg hit_mm=+559.3,+316.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1511,0  ray_az/el=+70.6/+47.7deg hit_mm=+1277.6,+1458.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+94.7/+5.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+120.2/-22.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+157.5/+20.2deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-154.4/+21.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=0,0  ray_az/el=-76.7/+70.2deg hit_mm=-1847.5,+5329.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1510,0  ray_az/el=+25.3/+32.2deg hit_mm=+233.5,+307.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1510,980  ray_az/el=+31.0/-26.0deg hit_mm=+289.9,-251.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=666,980  ray_az/el=-6.0/-62.8deg hit_mm=-21.0,-864.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+127.9/-51.1deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+120.9/-16.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+152.2/+25.4deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+129.5/+34.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+138.4/+24.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+134.3/+17.4deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+126.0/+15.0deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+96.4/+43.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+122.1/+32.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+119.7/-24.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+104.1/-24.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+103.8/-12.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+110.3/-13.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+111.9/-13.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+115.6/-8.3deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+155.0/+17.6deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=0,0  ray_az/el=-27.6/+33.5deg hit_mm=-205.5,+329.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=605,730  ray_az/el=-7.3/-6.4deg hit_mm=-31.7,-49.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=455,334  ray_az/el=-10.8/+4.4deg hit_mm=-58.9,+34.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=200,160  ray_az/el=-17.5/+7.3deg hit_mm=-114.1,+59.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=148,1  ray_az/el=-19.0/+19.6deg hit_mm=-127.1,+166.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=215,430  ray_az/el=-16.3/+0.8deg hit_mm=-103.6,+6.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=265,455  ray_az/el=-16.0/+1.5deg hit_mm=-101.7,+12.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=248,329  ray_az/el=-15.7/+4.2deg hit_mm=-99.1,+33.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=447,323  ray_az/el=-11.5/+4.4deg hit_mm=-64.6,+34.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=450,370  ray_az/el=-11.1/+3.0deg hit_mm=-61.3,+23.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=438,415  ray_az/el=-11.2/+1.6deg hit_mm=-62.0,+12.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=469,418  ray_az/el=-10.5/+1.6deg hit_mm=-56.7,+12.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=462,434  ray_az/el=-10.6/+1.3deg hit_mm=-57.7,+10.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=492,428  ray_az/el=-9.9/+2.1deg hit_mm=-52.2,+16.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=493,390  ray_az/el=-10.1/+2.9deg hit_mm=-53.4,+22.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=501,409  ray_az/el=-9.8/+2.2deg hit_mm=-51.1,+16.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=529,394  ray_az/el=-9.0/+2.2deg hit_mm=-44.9,+17.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=573,430  ray_az/el=-8.1/+1.7deg hit_mm=-37.9,+12.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=593,444  ray_az/el=-7.1/+1.2deg hit_mm=-29.5,+9.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=601,422  ray_az/el=-7.5/+1.6deg hit_mm=-33.0,+12.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=578,445  ray_az/el=-8.0/+1.2deg hit_mm=-36.5,+9.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=618,437  ray_az/el=-6.9/+1.5deg hit_mm=-28.4,+11.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=582,432  ray_az/el=-7.7/+1.4deg hit_mm=-34.5,+11.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=608,440  ray_az/el=-6.6/+1.4deg hit_mm=-26.1,+11.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=562,436  ray_az/el=-8.6/+1.2deg hit_mm=-41.5,+9.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=597,476  ray_az/el=-7.0/+0.1deg hit_mm=-28.7,+0.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=625,516  ray_az/el=-6.8/-0.8deg hit_mm=-27.3,-6.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=635,504  ray_az/el=-6.3/+0.1deg hit_mm=-23.5,+0.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=668,463  ray_az/el=-5.7/+0.8deg hit_mm=-18.8,+6.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=651,459  ray_az/el=-6.1/+0.9deg hit_mm=-21.8,+6.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=707,466  ray_az/el=-4.3/+0.6deg hit_mm=-7.8,+5.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=662,445  ray_az/el=-6.0/+0.9deg hit_mm=-21.5,+7.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=652,505  ray_az/el=-5.7/-0.7deg hit_mm=-18.5,-5.5
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=654,543  ray_az/el=-6.0/-1.0deg hit_mm=-21.6,-7.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=669,507  ray_az/el=-5.2/-0.3deg hit_mm=-14.9,-2.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=690,536  ray_az/el=-4.8/-1.5deg hit_mm=-12.2,-11.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=734,527  ray_az/el=-3.5/-1.0deg hit_mm=-2.1,-7.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=670,535  ray_az/el=-5.7/-1.1deg hit_mm=-18.6,-8.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=720,501  ray_az/el=-4.1/-0.1deg hit_mm=-6.2,-0.7
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=753,370  ray_az/el=-3.3/+3.6deg hit_mm=-0.5,+27.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=853,272  ray_az/el=-1.1/+5.9deg hit_mm=+16.5,+45.4
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=814,210  ray_az/el=-1.5/+7.4deg hit_mm=+13.8,+57.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=823,94  ray_az/el=-1.5/+10.4deg hit_mm=+13.5,+81.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=761,50  ray_az/el=-3.4/+11.4deg hit_mm=-1.1,+88.9
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=701,2  ray_az/el=-4.9/+13.4deg hit_mm=-12.7,+105.8
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=682,1  ray_az/el=-5.1/+16.9deg hit_mm=-14.6,+135.0
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=383,1  ray_az/el=-12.2/+21.3deg hit_mm=-70.7,+176.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=65,1  ray_az/el=-20.5/+35.7deg hit_mm=-139.7,+338.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=170,1  ray_az/el=-16.3/+50.0deg hit_mm=-104.3,+547.6
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1335,1  ray_az/el=+12.2/+52.7deg hit_mm=+120.3,+592.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1007,1  ray_az/el=+2.3/+55.0deg hit_mm=+42.8,+631.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=549,1  ray_az/el=-6.7/+72.8deg hit_mm=-26.6,+1438.1
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=1,1  ray_az/el=-41.0/+82.4deg hit_mm=-359.1,+4383.2
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-151.7/+69.5deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-146.8/+49.2deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-177.5/+11.7deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+144.9/+42.9deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=+132.4/+59.0deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-101.6/+27.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=0,0  ray_az/el=-70.9/+14.7deg hit_mm=-1245.7,+352.3
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-93.4/+14.8deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-118.3/-4.5deg hit_mm=none
+TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak= 2047.9/2048 dps SATURATION!  cursor=no intersection  ray_az/el=-96.9/-30.6deg hit_mm=none

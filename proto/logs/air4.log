@@ -1,0 +1,183 @@
+DISPLAY origin=(0,0) px=1512x982 physical_mm=301.2x195.6
+
+GUIDED PRE-TRACK — DESK BIAS
+Place device flat on desk, hands off, press Enter
+
+Opening /dev/cu.usbmodem101 at 921600 baud
+GYRO BIAS dps=[5.83943, 5.39245, 0.30757] std_dps=[0.37797, 0.4399, 0.90721]
+
+GUIDED PRE-TRACK — CALIBRATION
+Hold device up: USB down, screen facing webcam, half a meter away; press spacebar when marker detected
+
+CALIBRATION position_mm=[-35.0, 51.0, -487.8] quaternion_wxyz=[0.67923, -0.10237, 0.07352, -0.72303]
+# STEP 1 FLIP_AND_CENTER START host=1788096438.164 t_us=-
+
+========================================================================
+GUIDED STEP 1/12 — FLIP_AND_CENTER
+Flip device flat like a remote, aim at screen center, press r
+========================================================================
+Opening /dev/cu.usbmodem101 at 921600 baud
+GUIDED 1/12 waiting for key | TRACK MOVING  rate=111 Hz  drift=  +0.00 deg/min  peak=   14.2/2048 dps  cursor=no intersection  ray_az/el=+101.9/-59.6deg hit_mm=none
+GUIDED 1/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   14.3/2048 dps  cursor=no intersection  ray_az/el=+102.1/-56.3deg hit_mm=none
+GUIDED 1/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   85.6/2048 dps  cursor=no intersection  ray_az/el=+119.3/-53.9deg hit_mm=none
+GUIDED 1/12 waiting for key | TRACK MOVING  rate=218 Hz  drift=  +0.00 deg/min  peak=  344.8/2048 dps  cursor=1511,980  ray_az/el=+54.0/-7.8deg hit_mm=+636.0,-113.3
+GUIDED 1/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  321.6/2048 dps  cursor=1511,856  ray_az/el=+32.8/-7.4deg hit_mm=+279.0,-74.9
+# STEP 1 FLIP_AND_CENTER END host=1788096446.770 t_us=566027937
+# STEP 2 HOLD_STILL START host=1788096446.770 t_us=566027937
+
+========================================================================
+GUIDED STEP 2/12 — HOLD_STILL
+Hold still
+========================================================================
+# !!! RECENTERED !!! recenters=1
+GUIDED 2/12 9s remaining | TRACK MOVING  rate=218 Hz  drift=  +0.00 deg/min  peak=   40.4/2048 dps  cursor=970,230  ray_az/el=+9.7/+5.7deg hit_mm=+48.4,+49.5
+GUIDED 2/12 7s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   49.1/2048 dps  cursor=1337,179  ray_az/el=+17.2/+7.2deg hit_mm=+115.9,+64.7
+GUIDED 2/12 5s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   19.4/2048 dps  cursor=1402,1  ray_az/el=+18.5/+11.7deg hit_mm=+128.5,+106.9
+GUIDED 2/12 3s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   12.9/2048 dps  cursor=1391,1  ray_az/el=+18.4/+13.0deg hit_mm=+127.1,+118.4
+GUIDED 2/12 1s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   14.7/2048 dps  cursor=1332,1  ray_az/el=+17.2/+13.2deg hit_mm=+115.6,+120.2
+# STEP 2 HOLD_STILL END host=1788096456.768 t_us=576031934
+# STEP 3 YAW_SWEEP START host=1788096456.768 t_us=576031934
+
+========================================================================
+GUIDED STEP 3/12 — YAW_SWEEP
+Slow yaw sweep left-right
+========================================================================
+GUIDED 3/12 14s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   19.0/2048 dps  cursor=1457,1  ray_az/el=+20.3/+13.0deg hit_mm=+145.3,+120.0
+GUIDED 3/12 12s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   23.2/2048 dps  cursor=1510,7  ray_az/el=+46.5/+7.9deg hit_mm=+479.0,+98.5
+GUIDED 3/12 10s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   32.4/2048 dps  cursor=954,7  ray_az/el=+8.4/+11.2deg hit_mm=+36.6,+97.4
+GUIDED 3/12 8s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   15.8/2048 dps  cursor=381,1  ray_az/el=-5.0/+12.4deg hit_mm=-77.6,+107.8
+GUIDED 3/12 6s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   13.4/2048 dps  cursor=203,1  ray_az/el=-8.8/+13.5deg hit_mm=-110.2,+118.2
+GUIDED 3/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   12.5/2048 dps  cursor=219,1  ray_az/el=-8.4/+14.1deg hit_mm=-107.0,+123.6
+GUIDED 3/12 2s remaining | TRACK MOVING  rate=218 Hz  drift=  +0.00 deg/min  peak=   10.2/2048 dps  cursor=255,1  ray_az/el=-7.5/+14.5deg hit_mm=-99.3,+127.7
+# STEP 3 YAW_SWEEP END host=1788096471.766 t_us=591028935
+# STEP 4 PITCH_SWEEP START host=1788096471.767 t_us=591028935
+
+========================================================================
+GUIDED STEP 4/12 — PITCH_SWEEP
+Slow pitch sweep up-down
+========================================================================
+GUIDED 4/12 15s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   11.1/2048 dps  cursor=250,1  ray_az/el=-7.5/+12.2deg hit_mm=-99.6,+106.7
+GUIDED 4/12 13s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   17.9/2048 dps  cursor=515,1  ray_az/el=-1.3/+19.7deg hit_mm=-45.6,+174.8
+GUIDED 4/12 11s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   86.4/2048 dps  cursor=819,1  ray_az/el=+5.6/+18.0deg hit_mm=+12.9,+159.6
+GUIDED 4/12 9s remaining | TRACK MOVING  rate=218 Hz  drift=  +0.00 deg/min  peak=   36.9/2048 dps  cursor=860,1  ray_az/el=+6.4/+17.9deg hit_mm=+19.6,+158.9
+GUIDED 4/12 6s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   30.9/2048 dps  cursor=774,1  ray_az/el=+4.6/+15.7deg hit_mm=+4.5,+137.4
+GUIDED 4/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   44.1/2048 dps  cursor=864,1  ray_az/el=+6.7/+18.2deg hit_mm=+22.0,+161.6
+GUIDED 4/12 2s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   14.2/2048 dps  cursor=859,1  ray_az/el=+6.3/+18.6deg hit_mm=+18.7,+164.7
+# STEP 4 PITCH_SWEEP END host=1788096486.767 t_us=606030937
+# STEP 5 CORNER_TL START host=1788096486.767 t_us=606030937
+
+========================================================================
+GUIDED STEP 5/12 — CORNER_TL
+Aim at the top-left corner
+========================================================================
+GUIDED 5/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   16.4/2048 dps  cursor=649,1  ray_az/el=+1.4/+19.5deg hit_mm=-23.1,+172.8
+GUIDED 5/12 2s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   20.1/2048 dps  cursor=505,1  ray_az/el=-1.4/+20.1deg hit_mm=-47.0,+178.3
+# STEP 5 CORNER_TL END host=1788096490.766 t_us=610028962
+# STEP 6 CORNER_TR START host=1788096490.766 t_us=610028962
+
+========================================================================
+GUIDED STEP 6/12 — CORNER_TR
+Aim at the top-right corner
+========================================================================
+GUIDED 6/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   41.2/2048 dps  cursor=1510,1  ray_az/el=+40.3/+20.6deg hit_mm=+379.4,+241.1
+GUIDED 6/12 2s remaining | TRACK MOVING  rate=218 Hz  drift=  +0.00 deg/min  peak=   20.0/2048 dps  cursor=1510,1  ray_az/el=+36.0/+14.6deg hit_mm=+319.9,+156.8
+# STEP 6 CORNER_TR END host=1788096494.767 t_us=614031937
+# STEP 7 CORNER_BR START host=1788096494.767 t_us=614031937
+
+========================================================================
+GUIDED STEP 7/12 — CORNER_BR
+Aim at the bottom-right corner
+========================================================================
+GUIDED 7/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   49.7/2048 dps  cursor=1213,1  ray_az/el=+13.8/+13.0deg hit_mm=+84.5,+115.5
+GUIDED 7/12 2s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   43.5/2048 dps  cursor=1,1  ray_az/el=-20.8/+15.5deg hit_mm=-220.6,+144.8
+# STEP 7 CORNER_BR END host=1788096498.765 t_us=618029937
+# STEP 8 CORNER_BL START host=1788096498.765 t_us=618029937
+
+========================================================================
+GUIDED STEP 8/12 — CORNER_BL
+Aim at the bottom-left corner
+========================================================================
+GUIDED 8/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   17.0/2048 dps  cursor=1,1  ray_az/el=-20.5/+15.2deg hit_mm=-217.3,+141.4
+GUIDED 8/12 2s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   72.0/2048 dps  cursor=708,79  ray_az/el=+3.5/+8.9deg hit_mm=-4.8,+76.4
+# STEP 8 CORNER_BL END host=1788096502.762 t_us=622027937
+# STEP 9 DESK_REST START host=1788096502.762 t_us=622027937
+
+========================================================================
+GUIDED STEP 9/12 — DESK_REST
+Place device flat on desk, hands off
+========================================================================
+GUIDED 9/12 60s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   47.6/2048 dps  cursor=1510,518  ray_az/el=+28.0/-0.5deg hit_mm=+224.0,-4.5
+GUIDED 9/12 58s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  398.2/2048 dps  cursor=641,99  ray_az/el=+0.8/+5.7deg hit_mm=-28.5,+48.3
+GUIDED 9/12 56s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=  674.0/2048 dps  cursor=1,509  ray_az/el=-16.4/-0.1deg hit_mm=-178.8,-1.1
+GUIDED 9/12 54s remaining | TRACK MOVING  rate=219 Hz  drift=  +0.00 deg/min  peak=   58.8/2048 dps  cursor=267,274  ray_az/el=-7.2/+5.2deg hit_mm=-96.3,+44.4
+GUIDED 9/12 52s remaining | TRACK REST    rate=218 Hz  drift=  +0.00 deg/min  peak=  183.4/2048 dps  cursor=1435,167  ray_az/el=+19.5/+7.3deg hit_mm=+138.2,+66.0
+GUIDED 9/12 50s remaining | TRACK REST    rate=219 Hz  drift=  +0.64 deg/min  peak=   54.4/2048 dps  cursor=1402,68  ray_az/el=+18.6/+9.4deg hit_mm=+129.1,+85.2
+GUIDED 9/12 48s remaining | TRACK MOVING  rate=218 Hz  drift=  +0.15 deg/min  peak=    6.8/2048 dps  cursor=1406,13  ray_az/el=+18.6/+10.5deg hit_mm=+129.6,+95.8
+GUIDED 9/12 46s remaining | TRACK REST    rate=219 Hz  drift=  -0.18 deg/min  peak=    6.8/2048 dps  cursor=1412,1  ray_az/el=+18.8/+11.0deg hit_mm=+130.8,+99.7
+GUIDED 9/12 44s remaining | TRACK MOVING  rate=219 Hz  drift=  -0.43 deg/min  peak=    6.8/2048 dps  cursor=1417,1  ray_az/el=+18.9/+11.1deg hit_mm=+132.0,+101.5
+GUIDED 9/12 42s remaining | TRACK MOVING  rate=219 Hz  drift=  -0.45 deg/min  peak=    6.7/2048 dps  cursor=1419,1  ray_az/el=+18.9/+11.2deg hit_mm=+132.1,+102.2
+GUIDED 9/12 40s remaining | TRACK MOVING  rate=219 Hz  drift=  -0.50 deg/min  peak=    6.6/2048 dps  cursor=1421,1  ray_az/el=+18.9/+11.2deg hit_mm=+132.4,+102.4
+GUIDED 9/12 38s remaining | TRACK MOVING  rate=219 Hz  drift=  -0.43 deg/min  peak=    6.8/2048 dps  cursor=1422,1  ray_az/el=+19.0/+11.2deg hit_mm=+132.7,+102.1
+GUIDED 9/12 36s remaining | TRACK REST    rate=219 Hz  drift=  -0.51 deg/min  peak=    7.2/2048 dps  cursor=1426,1  ray_az/el=+19.1/+11.1deg hit_mm=+133.6,+101.5
+GUIDED 9/12 34s remaining | TRACK REST    rate=218 Hz  drift=  -0.56 deg/min  peak=    7.0/2048 dps  cursor=1433,1  ray_az/el=+19.2/+11.1deg hit_mm=+135.2,+101.1
+GUIDED 9/12 32s remaining | TRACK REST    rate=219 Hz  drift=  -0.65 deg/min  peak=    7.1/2048 dps  cursor=1439,1  ray_az/el=+19.4/+10.8deg hit_mm=+136.5,+98.7
+GUIDED 9/12 30s remaining | TRACK REST    rate=219 Hz  drift=  -0.69 deg/min  peak=    7.0/2048 dps  cursor=1450,1  ray_az/el=+19.6/+10.8deg hit_mm=+138.3,+98.8
+GUIDED 9/12 28s remaining | TRACK REST    rate=219 Hz  drift=  -0.68 deg/min  peak=    7.1/2048 dps  cursor=1455,1  ray_az/el=+19.7/+10.8deg hit_mm=+139.5,+98.6
+GUIDED 9/12 26s remaining | TRACK MOVING  rate=219 Hz  drift=  -0.69 deg/min  peak=    7.1/2048 dps  cursor=1460,1  ray_az/el=+19.8/+10.8deg hit_mm=+140.2,+98.5
+GUIDED 9/12 24s remaining | TRACK REST    rate=218 Hz  drift=  -0.66 deg/min  peak=    7.0/2048 dps  cursor=1469,1  ray_az/el=+20.0/+10.8deg hit_mm=+142.2,+98.8
+GUIDED 9/12 22s remaining | TRACK REST    rate=219 Hz  drift=  -0.69 deg/min  peak=    7.6/2048 dps  cursor=1472,23  ray_az/el=+20.0/+10.2deg hit_mm=+142.4,+93.4
+GUIDED 9/12 20s remaining | TRACK REST    rate=218 Hz  drift=  -0.79 deg/min  peak=    7.2/2048 dps  cursor=1479,14  ray_az/el=+20.2/+10.4deg hit_mm=+144.0,+95.2
+GUIDED 9/12 18s remaining | TRACK REST    rate=219 Hz  drift=  -0.88 deg/min  peak=    7.2/2048 dps  cursor=1485,12  ray_az/el=+20.3/+10.4deg hit_mm=+145.6,+95.6
+GUIDED 9/12 16s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.00 deg/min  peak=    7.0/2048 dps  cursor=1495,10  ray_az/el=+20.5/+10.4deg hit_mm=+147.3,+95.8
+GUIDED 9/12 14s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.13 deg/min  peak=    7.1/2048 dps  cursor=1506,10  ray_az/el=+20.8/+10.4deg hit_mm=+149.8,+95.9
+GUIDED 9/12 12s remaining | TRACK REST    rate=219 Hz  drift=  -1.26 deg/min  peak=    6.9/2048 dps  cursor=1510,10  ray_az/el=+20.9/+10.4deg hit_mm=+151.6,+95.9
+GUIDED 9/12 10s remaining | TRACK REST    rate=219 Hz  drift=  -1.35 deg/min  peak=    6.9/2048 dps  cursor=1510,10  ray_az/el=+21.1/+10.4deg hit_mm=+152.8,+95.9
+GUIDED 9/12 8s remaining | TRACK REST    rate=219 Hz  drift=  -1.45 deg/min  peak=    7.0/2048 dps  cursor=1511,10  ray_az/el=+21.3/+10.4deg hit_mm=+154.9,+96.0
+GUIDED 9/12 6s remaining | TRACK REST    rate=219 Hz  drift=  -1.54 deg/min  peak=    6.9/2048 dps  cursor=1511,9  ray_az/el=+21.6/+10.4deg hit_mm=+158.2,+96.1
+GUIDED 9/12 4s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.62 deg/min  peak=    7.2/2048 dps  cursor=1511,9  ray_az/el=+21.8/+10.4deg hit_mm=+159.8,+96.0
+GUIDED 9/12 2s remaining | TRACK MOVING  rate=218 Hz  drift=  -1.68 deg/min  peak=    7.2/2048 dps  cursor=1511,10  ray_az/el=+21.9/+10.3deg hit_mm=+161.3,+95.6
+# STEP 9 DESK_REST END host=1788096562.761 t_us=682028954
+# STEP 10 PICK_UP_AND_CENTER START host=1788096562.761 t_us=682028954
+
+========================================================================
+GUIDED STEP 10/12 — PICK_UP_AND_CENTER
+Pick up, aim at center, press r
+========================================================================
+GUIDED 10/12 waiting for key | TRACK REST    rate=219 Hz  drift=  -1.72 deg/min  peak=    7.4/2048 dps  cursor=1511,12  ray_az/el=+22.0/+10.3deg hit_mm=+161.6,+95.4
+GUIDED 10/12 waiting for key | TRACK REST    rate=219 Hz  drift=  -1.75 deg/min  peak=    6.9/2048 dps  cursor=1511,11  ray_az/el=+21.9/+10.3deg hit_mm=+160.9,+95.8
+GUIDED 10/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  502.1/2048 dps  cursor=797,980  ray_az/el=+6.4/-13.9deg hit_mm=+19.3,-121.6
+# STEP 10 PICK_UP_AND_CENTER END host=1788096568.919 t_us=688180934
+# STEP 11 FREE_WAVE START host=1788096568.919 t_us=688180934
+
+========================================================================
+GUIDED STEP 11/12 — FREE_WAVE
+Free wave
+========================================================================
+# !!! RECENTERED !!! recenters=2
+GUIDED 11/12 15s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  263.8/2048 dps  cursor=756,491  ray_az/el=+4.1/+0.0deg hit_mm=+0.0,+0.0
+GUIDED 11/12 13s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=   31.0/2048 dps  cursor=440,978  ray_az/el=-3.6/-12.2deg hit_mm=-65.8,-106.1
+GUIDED 11/12 11s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  165.3/2048 dps  cursor=1,847  ray_az/el=-15.3/-10.0deg hit_mm=-168.4,-89.0
+GUIDED 11/12 9s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  941.2/2048 dps  cursor=1,981  ray_az/el=-85.5/-55.2deg hit_mm=-6297.3,-9047.9
+GUIDED 11/12 7s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  826.6/2048 dps  cursor=1128,667  ray_az/el=+13.2/-4.9deg hit_mm=+79.1,-43.2
+GUIDED 11/12 5s remaining | TRACK MOVING  rate=218 Hz  drift=  -1.75 deg/min  peak=  315.9/2048 dps  cursor=292,980  ray_az/el=-8.9/-12.5deg hit_mm=-111.5,-109.9
+GUIDED 11/12 3s remaining | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  369.5/2048 dps  cursor=3,754  ray_az/el=-12.5/-6.6deg hit_mm=-143.2,-58.2
+GUIDED 11/12 1s remaining | TRACK MOVING  rate=218 Hz  drift=  -1.75 deg/min  peak=   82.8/2048 dps  cursor=1230,678  ray_az/el=+15.1/-4.5deg hit_mm=+96.7,-39.6
+# STEP 11 FREE_WAVE END host=1788096583.915 t_us=703182938
+# STEP 12 DONE START host=1788096583.915 t_us=703182938
+
+========================================================================
+GUIDED STEP 12/12 — DONE
+Done — press q
+========================================================================
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  107.1/2048 dps  cursor=357,668  ray_az/el=-5.5/-4.1deg hit_mm=-82.3,-35.5
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  129.6/2048 dps  cursor=1509,545  ray_az/el=+22.0/-0.4deg hit_mm=+161.8,-3.4
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  115.0/2048 dps  cursor=5,533  ray_az/el=-14.3/-1.1deg hit_mm=-159.3,-9.4
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  131.4/2048 dps  cursor=1045,623  ray_az/el=+10.5/-3.1deg hit_mm=+55.1,-27.0
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=218 Hz  drift=  -1.75 deg/min  peak=  112.8/2048 dps  cursor=217,608  ray_az/el=-7.5/-2.1deg hit_mm=-98.9,-18.1
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  160.4/2048 dps  cursor=174,980  ray_az/el=-10.6/-14.9deg hit_mm=-126.1,-131.9
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=218 Hz  drift=  -1.75 deg/min  peak=  105.1/2048 dps  cursor=1,1  ray_az/el=-36.6/+21.3deg hit_mm=-396.9,+237.4
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  222.2/2048 dps  cursor=1,16  ray_az/el=-42.4/+7.9deg hit_mm=-480.8,+91.6
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=  108.2/2048 dps  cursor=1,686  ray_az/el=-59.2/-2.6deg hit_mm=-853.5,-42.8
+GUIDED 12/12 waiting for key | TRACK MOVING  rate=219 Hz  drift=  -1.75 deg/min  peak=   83.6/2048 dps  cursor=1,980  ray_az/el=-47.4/-10.5deg hit_mm=-565.8,-133.2
+# STEP 12 DONE END host=1788096604.727 t_us=723989940
+SUMMARY samples=36492 duration=166.542s peak_gyro=941.25dps clips=0 recenters=2 drift=-1.747deg/min target_span_px=[1511.00, 981.00]

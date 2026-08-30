@@ -1,0 +1,55 @@
+loaded 13009 samples over 78.047 s (166.7 Hz); rest=67.0%
+stroke 1: duration=0.721 s, peak_accel=4.390 m/s^2, displacement=(-0.52, +94.87) mm, magnitude=94.87 mm
+stroke 2: duration=0.883 s, peak_accel=3.284 m/s^2, displacement=(-0.36, -232.26) mm, magnitude=232.26 mm
+stroke 3: duration=0.420 s, peak_accel=1.210 m/s^2, displacement=(+0.24, -0.75) mm, magnitude=0.79 mm
+stroke 4: duration=1.871 s, peak_accel=5.022 m/s^2, displacement=(-2.70, +233.48) mm, magnitude=233.50 mm
+stroke 5: duration=0.041 s, peak_accel=0.044 m/s^2, displacement=(-0.00, +0.00) mm, magnitude=0.00 mm
+stroke 6: duration=0.028 s, peak_accel=0.042 m/s^2, displacement=(+0.00, +0.00) mm, magnitude=0.00 mm
+stroke 7: duration=1.021 s, peak_accel=2.571 m/s^2, displacement=(+3.47, -226.83) mm, magnitude=226.85 mm
+stroke 8: duration=0.374 s, peak_accel=1.231 m/s^2, displacement=(+0.18, -0.71) mm, magnitude=0.73 mm
+stroke 9: duration=1.035 s, peak_accel=3.867 m/s^2, displacement=(-4.21, +222.34) mm, magnitude=222.38 mm
+stroke 10: duration=0.319 s, peak_accel=0.053 m/s^2, displacement=(-0.12, -0.07) mm, magnitude=0.14 mm
+stroke 11: duration=0.055 s, peak_accel=0.027 m/s^2, displacement=(-0.01, -0.00) mm, magnitude=0.01 mm
+stroke 12: duration=1.150 s, peak_accel=2.991 m/s^2, displacement=(+4.35, -225.04) mm, magnitude=225.09 mm
+stroke 13: duration=0.457 s, peak_accel=1.794 m/s^2, displacement=(+0.45, +8.10) mm, magnitude=8.11 mm
+stroke 14: duration=2.619 s, peak_accel=1.999 m/s^2, displacement=(-23.92, +226.71) mm, magnitude=227.96 mm
+stroke 15: duration=1.843 s, peak_accel=0.847 m/s^2, displacement=(+10.74, -189.75) mm, magnitude=190.06 mm
+stroke 16: duration=4.015 s, peak_accel=1.165 m/s^2, displacement=(-33.39, +273.10) mm, magnitude=275.14 mm
+stroke 17: duration=0.309 s, peak_accel=0.061 m/s^2, displacement=(+0.11, -0.01) mm, magnitude=0.11 mm
+stroke 18: duration=2.882 s, peak_accel=1.016 m/s^2, displacement=(+23.02, -275.65) mm, magnitude=276.61 mm
+stroke 19: duration=0.051 s, peak_accel=0.036 m/s^2, displacement=(+0.01, +0.00) mm, magnitude=0.01 mm
+stroke 20: duration=0.148 s, peak_accel=0.038 m/s^2, displacement=(+0.00, +0.01) mm, magnitude=0.01 mm
+stroke 21: duration=0.873 s, peak_accel=0.051 m/s^2, displacement=(+0.06, +0.18) mm, magnitude=0.19 mm
+stroke 22: duration=4.204 s, peak_accel=2.455 m/s^2, displacement=(-146.45, +13.77) mm, magnitude=147.10 mm
+stroke 23: duration=0.559 s, peak_accel=1.399 m/s^2, displacement=(-0.41, -0.50) mm, magnitude=0.64 mm
+total endpoint displacement across detected strokes: 2362.566 mm
+vibration energy rest (mg RMS): p10=0.66, p25=0.79, p50=1.02, p75=1.47, p90=2.13, p95=2.57
+vibration energy stroke (mg RMS): p10=1.19, p25=2.12, p50=3.76, p75=6.31, p90=12.45, p95=17.48
+vibration separation (mg RMS): median gap=+2.74, stroke p25 - rest p95=-0.45
+micro-rests (qualified interior rest runs <0.5 s): 5; start/duration=24.127s/0.217s, 30.621s/0.471s, 43.042s/0.227s, 59.903s/0.217s, 76.070s/0.217s
+
+GUIDED ACTION SEGMENTS
+BRISK_R1: displacement=(+6.09, +93.24) mm, magnitude=93.44 mm, direction=+86.3 deg, motion=YES
+BRISK_L1: displacement=(+29.58, -262.77) mm, magnitude=264.43 mm, direction=-83.6 deg, motion=YES
+BRISK_R2: displacement=(-29.36, +252.59) mm, magnitude=254.29 mm, direction=+96.6 deg, motion=YES
+BRISK_L2: displacement=(+39.11, -259.44) mm, magnitude=262.37 mm, direction=-81.4 deg, motion=YES
+BRISK_R3: displacement=(-12.77, +249.38) mm, magnitude=249.70 mm, direction=+92.9 deg, motion=YES
+BRISK_L3: displacement=(+12.10, -222.16) mm, magnitude=222.49 mm, direction=-86.9 deg, motion=YES
+MEDIUM_R: displacement=(-18.03, +21.53) mm, magnitude=28.08 mm, direction=+129.9 deg, motion=YES
+MEDIUM_L: displacement=(+36.45, -264.17) mm, magnitude=266.68 mm, direction=-82.1 deg, motion=YES
+SLOW_R: displacement=(-57.94, +312.39) mm, magnitude=317.72 mm, direction=+100.5 deg, motion=YES
+SLOW_L: displacement=(+52.38, -338.12) mm, magnitude=342.15 mm, direction=-81.2 deg, motion=YES
+CIRCLE: displacement=(-431.58, +62.76) mm, magnitude=436.12 mm, direction=+171.7 deg, motion=YES
+
+SCORECARD
+brisk repeatability: std/mean=26.81% (mean=224.45 mm, n=6)
+L/R symmetry pair 1: L/R=2.830, mismatch=95.56% (R=93.44 mm, L=264.43 mm)
+L/R symmetry pair 2: L/R=1.032, mismatch=3.13% (R=254.29 mm, L=262.37 mm)
+L/R symmetry pair 3: L/R=0.891, mismatch=11.53% (R=249.70 mm, L=222.49 mm)
+medium/brisk magnitude ratio: R=0.141, L=1.068 (target ~1.0)
+slow/brisk magnitude ratio: R=1.595, L=1.370 (target ~1.0)
+slow-drag detection: R=YES, L=YES
+circle endpoint closure: 436.117 mm
+phantom motion (mm; target ~0): PREP_STILL=0.000, FREEZE_1=0.000, FREEZE_2=0.000, FREEZE_3=0.000, FREEZE_4=0.000, FREEZE_5=0.000, FREEZE_6=0.000, FREEZE_7=116.629, FREEZE_8=0.000, FREEZE_9=7.885, FREEZE_10=2.233, FINAL_STILL=207.013
+phantom summary: max=207.013 mm, total=333.760 mm
+plot: proto/logs/table3_table_zupt.png
